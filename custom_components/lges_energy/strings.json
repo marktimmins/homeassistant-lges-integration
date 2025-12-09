@@ -1,0 +1,159 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "LG Energy Solutions Login",
+        "description": "Enter your LG RESU Home Monitor credentials (lgresuhomemonitor.com)",
+        "data": {
+          "username": "Email Address",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid username or password",
+      "cannot_connect": "Failed to connect to the LG Energy Solutions server",
+      "no_stations": "No power stations found for this account",
+      "unknown": "An unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "This account is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "LG Energy Solutions Options",
+        "description": "Configure integration options"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "solar_power": {
+        "name": "Solar Power"
+      },
+      "battery_power": {
+        "name": "Battery Power"
+      },
+      "load_power": {
+        "name": "Home Load Power"
+      },
+      "grid_power": {
+        "name": "Grid Power"
+      },
+      "battery_soc": {
+        "name": "Battery State of Charge"
+      },
+      "battery_capacity": {
+        "name": "Battery Capacity"
+      },
+      "daily_generation": {
+        "name": "Generated Today"
+      },
+      "grid_import": {
+        "name": "Grid Import Today"
+      },
+      "grid_export": {
+        "name": "Grid Export Today"
+      },
+      "self_use": {
+        "name": "Self Use Today"
+      },
+      "battery_charge": {
+        "name": "Battery Charge Today"
+      },
+      "battery_discharge": {
+        "name": "Battery Discharge Today"
+      },
+      "consumption": {
+        "name": "Home Consumption Today"
+      },
+      "generation_this_month": {
+        "name": "Generated This Month"
+      },
+      "grid_import_this_month": {
+        "name": "Grid Import This Month"
+      },
+      "grid_export_this_month": {
+        "name": "Grid Export This Month"
+      },
+      "self_use_this_month": {
+        "name": "Self Use This Month"
+      },
+      "battery_charge_this_month": {
+        "name": "Battery Charge This Month"
+      },
+      "battery_discharge_this_month": {
+        "name": "Battery Discharge This Month"
+      },
+      "consumption_this_month": {
+        "name": "Home Consumption This Month"
+      },
+      "generation_this_year": {
+        "name": "Generated This Year"
+      },
+      "grid_import_this_year": {
+        "name": "Grid Import This Year"
+      },
+      "grid_export_this_year": {
+        "name": "Grid Export This Year"
+      },
+      "self_use_this_year": {
+        "name": "Self Use This Year"
+      },
+      "battery_charge_this_year": {
+        "name": "Battery Charge This Year"
+      },
+      "battery_discharge_this_year": {
+        "name": "Battery Discharge This Year"
+      },
+      "consumption_this_year": {
+        "name": "Home Consumption This Year"
+      },
+      "generation_all_time": {
+        "name": "Generated All Time"
+      },
+      "grid_import_all_time": {
+        "name": "Grid Import All Time"
+      },
+      "grid_export_all_time": {
+        "name": "Grid Export All Time"
+      },
+      "self_use_all_time": {
+        "name": "Self Use All Time"
+      },
+      "battery_charge_all_time": {
+        "name": "Battery Charge All Time"
+      },
+      "battery_discharge_all_time": {
+        "name": "Battery Discharge All Time"
+      },
+      "consumption_all_time": {
+        "name": "Home Consumption All Time"
+      },
+      "daily_income": {
+        "name": "Daily Income"
+      },
+      "total_income": {
+        "name": "Total Income"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "online": "Online",
+          "offline": "Offline",
+          "error": "Error",
+          "waiting": "Waiting",
+          "unknown": "Unknown"
+        }
+      },
+      "solar_capacity": {
+        "name": "Solar Capacity"
+      },
+      "last_update": {
+        "name": "Last Update"
+      }
+    }
+  }
+}

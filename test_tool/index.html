@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LGES API Debug Tool</title>
+    <style>
+      :root {
+        --bg-primary: #0f172a;
+        --bg-secondary: #1e293b;
+        --bg-card: #334155;
+        --text-primary: #f8fafc;
+        --text-secondary: #94a3b8;
+        --accent: #22c55e;
+        --accent-hover: #16a34a;
+        --warning: #f59e0b;
+        --error: #ef4444;
+        --border: #475569;
+        --blue: #3b82f6;
+        --purple: #a855f7;
+        --orange: #f97316;
+        --cyan: #06b6d4;
+        --pink: #ec4899;
+        --red: #ef4444;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        min-height: 100vh;
+        padding: 2rem;
+      }
+
+      .container {
+        max-width: 1600px;
+        margin: 0 auto;
+      }
+
+      header {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+
+      h1 {
+        font-size: 2rem;
+        background: linear-gradient(135deg, var(--accent), #3b82f6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 0.5rem;
+      }
+
+      .subtitle {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+      }
+
+      .warning-banner {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(239, 68, 68, 0.1));
+        border: 1px solid var(--warning);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .warning-banner svg {
+        flex-shrink: 0;
+        color: var(--warning);
+      }
+      .warning-banner p {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+      }
+
+      .main-grid {
+        display: grid;
+        grid-template-columns: 400px 1fr;
+        gap: 2rem;
+      }
+
+      @media (max-width: 1200px) {
+        .main-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .card {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid var(--border);
+      }
+
+      .card h2 {
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .form-group {
+        margin-bottom: 1rem;
+      }
+
+      label {
+        display: block;
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+      }
+
+      input[type="text"],
+      input[type="password"],
+      input[type="email"] {
+        width: 100%;
+        padding: 0.75rem;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        transition: border-color 0.2s;
+      }
+
+      input:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+
+      button {
+        width: 100%;
+        padding: 0.75rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: var(--bg-primary);
+      }
+      .btn-primary:hover {
+        background: var(--accent-hover);
+      }
+      .btn-primary:disabled {
+        background: var(--border);
+        cursor: not-allowed;
+      }
+
+      .btn-secondary {
+        background: var(--bg-card);
+        color: var(--text-primary);
+        border: 1px solid var(--border);
+      }
+      .btn-secondary:hover {
+        background: var(--border);
+      }
+      .btn-secondary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .status {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+      }
+
+      .status.success {
+        background: rgba(34, 197, 94, 0.1);
+        border: 1px solid var(--accent);
+        color: var(--accent);
+      }
+
+      .api-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-top: 1.5rem;
+      }
+
+      .divider {
+        height: 1px;
+        background: var(--border);
+        margin: 1.5rem 0;
+      }
+
+      .station-select {
+        width: 100%;
+        padding: 0.75rem;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .station-select:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .token-display {
+        background: var(--bg-card);
+        padding: 0.75rem;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 0.7rem;
+        word-break: break-all;
+        color: var(--text-secondary);
+        margin-top: 0.5rem;
+      }
+
+      /* Summary Dashboard */
+      .summary-section {
+        margin-bottom: 2rem;
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 0.75rem;
+      }
+
+      .summary-card {
+        background: var(--bg-secondary);
+        border-radius: 10px;
+        padding: 0.875rem;
+        border: 1px solid var(--border);
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .summary-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+      }
+
+      .summary-card.power::before {
+        background: var(--accent);
+      }
+      .summary-card.battery::before {
+        background: var(--blue);
+      }
+      .summary-card.energy::before {
+        background: var(--purple);
+      }
+      .summary-card.income::before {
+        background: var(--orange);
+      }
+      .summary-card.status::before {
+        background: var(--warning);
+      }
+      .summary-card.info::before {
+        background: var(--cyan);
+      }
+      .summary-card.system::before {
+        background: var(--pink);
+      }
+      .summary-card.flow::before {
+        background: var(--accent);
+      }
+      .summary-card.grid-power::before {
+        background: var(--red);
+      }
+      .summary-card.load::before {
+        background: var(--orange);
+      }
+
+      .summary-card .icon {
+        font-size: 1.1rem;
+        margin-bottom: 0.35rem;
+      }
+
+      .summary-card .label {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.2rem;
+      }
+
+      .summary-card .value {
+        font-size: 1.2rem;
+        font-weight: 700;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+      }
+
+      .summary-card .unit {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        font-weight: 400;
+      }
+
+      .summary-card .subvalue {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        margin-top: 0.2rem;
+        word-wrap: break-word;
+      }
+
+      .summary-card .value.online {
+        color: var(--accent);
+      }
+      .summary-card .value.offline {
+        color: var(--error);
+      }
+
+      .no-data {
+        color: var(--text-secondary);
+        font-style: italic;
+      }
+
+      /* Results Panel */
+      .results-section {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .result-card {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        overflow: hidden;
+      }
+
+      .result-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .result-header h3 {
+        font-size: 0.95rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .result-header .timestamp {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+      }
+
+      .result-actions {
+        display: flex;
+        gap: 0.5rem;
+      }
+      .result-actions button {
+        width: auto;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.75rem;
+      }
+
+      .result-body {
+        max-height: 280px;
+        overflow: auto;
+      }
+
+      pre {
+        padding: 1rem;
+        font-family: "Fira Code", "Consolas", monospace;
+        font-size: 0.7rem;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .json-key {
+        color: #7dd3fc;
+      }
+      .json-string {
+        color: #86efac;
+      }
+      .json-number {
+        color: #fcd34d;
+      }
+      .json-boolean {
+        color: #f472b6;
+      }
+      .json-null {
+        color: #94a3b8;
+      }
+
+      .loader {
+        width: 18px;
+        height: 18px;
+        border: 2px solid var(--bg-primary);
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .right-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      .section-title {
+        font-size: 1rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .battery-bar {
+        height: 5px;
+        background: var(--bg-card);
+        border-radius: 3px;
+        overflow: hidden;
+        margin-top: 0.35rem;
+      }
+
+      .battery-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), #3b82f6);
+        border-radius: 3px;
+        transition: width 0.3s ease;
+      }
+
+      .section-divider {
+        grid-column: 1 / -1;
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 0.25rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>⚡ LGES API Debug Tool</h1>
+        <p class="subtitle">Test LG Energy Solutions API responses for Home Assistant integration</p>
+      </header>
+
+      <div class="warning-banner">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <circle cx="12" cy="17" r="1" />
+        </svg>
+        <p><strong>Rate Limit Warning:</strong> This API has rate limits. Only make requests when necessary.</p>
+      </div>
+
+      <div class="main-grid">
+        <!-- Control Panel -->
+        <div class="control-panel">
+          <div class="card">
+            <h2>🔐 Authentication</h2>
+
+            <div id="loginForm">
+              <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" placeholder="your.email@example.com" autocomplete="email" />
+              </div>
+              <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+              </div>
+              <button class="btn-primary" id="loginBtn" onclick="login()">
+                <span>Login to LGES</span>
+              </button>
+            </div>
+
+            <div id="loggedInStatus" class="hidden">
+              <div class="status success">✓ Authenticated successfully</div>
+              <div class="token-display" id="tokenPreview"></div>
+              <button class="btn-secondary" onclick="logout()" style="margin-top: 1rem">Logout</button>
+            </div>
+
+            <div class="divider"></div>
+
+            <h2>📡 API Endpoints</h2>
+
+            <div class="api-buttons">
+              <button class="btn-secondary" id="getStationsBtn" onclick="getStations()" disabled>
+                Get Power Stations
+              </button>
+
+              <div id="stationSelectWrapper" class="hidden">
+                <label for="stationSelect">Select Station</label>
+                <select id="stationSelect" class="station-select">
+                  <option value="">-- Select Station --</option>
+                </select>
+              </div>
+
+              <button class="btn-secondary" id="getDetailsBtn" onclick="getPlantDetails()" disabled>
+                Get Plant Details
+              </button>
+              <button class="btn-secondary" id="getPowerflowBtn" onclick="getPowerflow()" disabled>
+                Get Power Flow
+              </button>
+              <button class="btn-secondary" id="getChartBtn" onclick="getEnergyStats()" disabled>
+                Get Today Stats
+              </button>
+              <button class="btn-secondary" id="getMonthlyBtn" onclick="getMonthlyStats()" disabled>
+                Get This Month Stats
+              </button>
+              <button class="btn-secondary" id="getYearlyBtn" onclick="getYearlyStats()" disabled>
+                Get This Year Stats
+              </button>
+              <button class="btn-secondary" id="getAllTimeBtn" onclick="getAllTimeStats()" disabled>
+                Get All-Time Stats
+              </button>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top: 1rem">
+            <h2>📋 Request Log</h2>
+            <div id="requestLog" style="font-size: 0.8rem; color: var(--text-secondary)">
+              <p>No requests made yet.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Panel: Summary + Results -->
+        <div class="right-panel">
+          <!-- Summary Dashboard -->
+          <div class="summary-section">
+            <div class="summary-grid" id="summaryGrid">
+              <!-- Plant Details Row -->
+              <div class="section-divider">🏭 Plant Details</div>
+              <div class="summary-card status">
+                <div class="icon">📡</div>
+                <div class="label">Status</div>
+                <div class="value no-data" id="sum-status">--</div>
+                <div class="subvalue" id="sum-station-name">No data</div>
+              </div>
+              <div class="summary-card battery">
+                <div class="icon">🔋</div>
+                <div class="label">Battery SOC</div>
+                <div class="value" id="sum-battery-soc">--<span class="unit">%</span></div>
+                <div class="battery-bar">
+                  <div class="battery-bar-fill" id="sum-battery-bar" style="width: 0%"></div>
+                </div>
+              </div>
+              <div class="summary-card system">
+                <div class="icon">🕐</div>
+                <div class="label">Last Update</div>
+                <div class="value" id="sum-last-update" style="font-size: 1rem">--</div>
+                <div class="subvalue">info.local_date</div>
+              </div>
+              <div class="summary-card energy">
+                <div class="icon">💵</div>
+                <div class="label">Daily Income</div>
+                <div class="value" id="sum-daily-income">--<span class="unit"> AUD</span></div>
+                <div class="subvalue">kpi.day_income</div>
+              </div>
+              <div class="summary-card energy">
+                <div class="icon">💰</div>
+                <div class="label">Total Income</div>
+                <div class="value" id="sum-total-income">--<span class="unit"> AUD</span></div>
+                <div class="subvalue">kpi.total_income</div>
+              </div>
+
+              <!-- Power Flow Row -->
+              <div class="section-divider">⚡ Real-Time Power Flow (data.powerflow)</div>
+              <div class="summary-card flow">
+                <div class="icon">☀️</div>
+                <div class="label">Solar (PV)</div>
+                <div class="value" id="sum-pv-power">--<span class="unit"> W</span></div>
+                <div class="subvalue">powerflow.pv</div>
+              </div>
+              <div class="summary-card battery">
+                <div class="icon">🔋</div>
+                <div class="label">Battery</div>
+                <div class="value" id="sum-battery-power">--<span class="unit"> W</span></div>
+                <div class="subvalue">powerflow.bettery</div>
+              </div>
+              <div class="summary-card load">
+                <div class="icon">🏠</div>
+                <div class="label">Load (Home)</div>
+                <div class="value" id="sum-load-power">--<span class="unit"> W</span></div>
+                <div class="subvalue">powerflow.load</div>
+              </div>
+              <div class="summary-card grid-power">
+                <div class="icon">🔌</div>
+                <div class="label">Grid</div>
+                <div class="value" id="sum-grid-power">--<span class="unit"> W</span></div>
+                <div class="subvalue">powerflow.grid</div>
+              </div>
+
+              <!-- Today Energy Stats -->
+              <div class="section-divider">📊 Today Energy Stats</div>
+              <div class="summary-card energy">
+                <div class="icon">☀️</div>
+                <div class="label">Generated (Today)</div>
+                <div class="value" id="sum-daily-gen">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">modelData.sum</div>
+              </div>
+              <div class="summary-card grid-power">
+                <div class="icon">📥</div>
+                <div class="label">Grid Import (Today)</div>
+                <div class="value" id="sum-daily-buy">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">modelData.buy</div>
+              </div>
+              <div class="summary-card flow">
+                <div class="icon">📤</div>
+                <div class="label">Grid Export (Today)</div>
+                <div class="value" id="sum-daily-sell">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">modelData.sell</div>
+              </div>
+              <div class="summary-card energy">
+                <div class="icon">🏠</div>
+                <div class="label">Self Use (Today)</div>
+                <div class="value" id="sum-daily-selfuse">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">modelData.selfUseOfPv</div>
+              </div>
+              <div class="summary-card load">
+                <div class="icon">⚡</div>
+                <div class="label">Consumption (Today)</div>
+                <div class="value" id="sum-daily-consumption">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">modelData.consumptionOfLoad</div>
+              </div>
+              <div class="summary-card battery">
+                <div class="icon">🔼</div>
+                <div class="label">Batt Charge (Today)</div>
+                <div class="value" id="sum-daily-charge">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">modelData.charge</div>
+              </div>
+              <div class="summary-card battery">
+                <div class="icon">🔽</div>
+                <div class="label">Batt Discharge (Today)</div>
+                <div class="value" id="sum-daily-discharge">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">modelData.disCharge</div>
+              </div>
+
+              <!-- This Month Energy Stats -->
+              <div class="section-divider">📅 This Month Energy Stats</div>
+              <div class="summary-card energy">
+                <div class="icon">☀️</div>
+                <div class="label">Generated (This Month)</div>
+                <div class="value" id="sum-monthly-gen">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">monthly.modelData.sum</div>
+              </div>
+              <div class="summary-card grid-power">
+                <div class="icon">📥</div>
+                <div class="label">Grid Import (This Month)</div>
+                <div class="value" id="sum-monthly-buy">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">monthly.modelData.buy</div>
+              </div>
+              <div class="summary-card flow">
+                <div class="icon">📤</div>
+                <div class="label">Grid Export (This Month)</div>
+                <div class="value" id="sum-monthly-sell">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">monthly.modelData.sell</div>
+              </div>
+              <div class="summary-card energy">
+                <div class="icon">🏠</div>
+                <div class="label">Self Use (This Month)</div>
+                <div class="value" id="sum-monthly-selfuse">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">monthly.modelData.selfUseOfPv</div>
+              </div>
+              <div class="summary-card load">
+                <div class="icon">⚡</div>
+                <div class="label">Consumption (This Month)</div>
+                <div class="value" id="sum-monthly-consumption">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">monthly.modelData.consumptionOfLoad</div>
+              </div>
+              <div class="summary-card battery">
+                <div class="icon">🔼</div>
+                <div class="label">Batt Charge (This Month)</div>
+                <div class="value" id="sum-monthly-charge">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">monthly.modelData.charge</div>
+              </div>
+              <div class="summary-card battery">
+                <div class="icon">🔽</div>
+                <div class="label">Batt Discharge (This Month)</div>
+                <div class="value" id="sum-monthly-discharge">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">monthly.modelData.disCharge</div>
+              </div>
+
+              <!-- This Year Energy Stats -->
+              <div class="section-divider">📆 This Year Energy Stats</div>
+              <div class="summary-card energy">
+                <div class="icon">☀️</div>
+                <div class="label">Generated (This Year)</div>
+                <div class="value" id="sum-yearly-gen">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">yearly.modelData.sum</div>
+              </div>
+              <div class="summary-card grid-power">
+                <div class="icon">📥</div>
+                <div class="label">Grid Import (This Year)</div>
+                <div class="value" id="sum-yearly-buy">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">yearly.modelData.buy</div>
+              </div>
+              <div class="summary-card flow">
+                <div class="icon">📤</div>
+                <div class="label">Grid Export (This Year)</div>
+                <div class="value" id="sum-yearly-sell">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">yearly.modelData.sell</div>
+              </div>
+              <div class="summary-card energy">
+                <div class="icon">🏠</div>
+                <div class="label">Self Use (This Year)</div>
+                <div class="value" id="sum-yearly-selfuse">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">yearly.modelData.selfUseOfPv</div>
+              </div>
+              <div class="summary-card load">
+                <div class="icon">⚡</div>
+                <div class="label">Consumption (This Year)</div>
+                <div class="value" id="sum-yearly-consumption">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">yearly.modelData.consumptionOfLoad</div>
+              </div>
+              <div class="summary-card battery">
+                <div class="icon">🔼</div>
+                <div class="label">Batt Charge (This Year)</div>
+                <div class="value" id="sum-yearly-charge">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">yearly.modelData.charge</div>
+              </div>
+              <div class="summary-card battery">
+                <div class="icon">🔽</div>
+                <div class="label">Batt Discharge (This Year)</div>
+                <div class="value" id="sum-yearly-discharge">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">yearly.modelData.disCharge</div>
+              </div>
+
+              <!-- All-Time Energy Stats -->
+              <div class="section-divider">🌍 All-Time Energy Stats</div>
+              <div class="summary-card energy">
+                <div class="icon">☀️</div>
+                <div class="label">Generated (All Time)</div>
+                <div class="value" id="sum-alltime-gen">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">allTime.modelData.sum</div>
+              </div>
+              <div class="summary-card grid-power">
+                <div class="icon">📥</div>
+                <div class="label">Grid Import (All Time)</div>
+                <div class="value" id="sum-alltime-buy">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">allTime.modelData.buy</div>
+              </div>
+              <div class="summary-card flow">
+                <div class="icon">📤</div>
+                <div class="label">Grid Export (All Time)</div>
+                <div class="value" id="sum-alltime-sell">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">allTime.modelData.sell</div>
+              </div>
+              <div class="summary-card energy">
+                <div class="icon">🏠</div>
+                <div class="label">Self Use (All Time)</div>
+                <div class="value" id="sum-alltime-selfuse">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">allTime.modelData.selfUseOfPv</div>
+              </div>
+              <div class="summary-card load">
+                <div class="icon">⚡</div>
+                <div class="label">Consumption (All Time)</div>
+                <div class="value" id="sum-alltime-consumption">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">allTime.modelData.consumptionOfLoad</div>
+              </div>
+              <div class="summary-card battery">
+                <div class="icon">🔼</div>
+                <div class="label">Batt Charge (All Time)</div>
+                <div class="value" id="sum-alltime-charge">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">allTime.modelData.charge</div>
+              </div>
+              <div class="summary-card battery">
+                <div class="icon">🔽</div>
+                <div class="label">Batt Discharge (All Time)</div>
+                <div class="value" id="sum-alltime-discharge">--<span class="unit"> kWh</span></div>
+                <div class="subvalue">allTime.modelData.disCharge</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Results Panel -->
+          <div class="results-section" id="resultsPanel">
+            <div class="section-title">📄 Raw API Responses</div>
+            <div class="result-card" id="welcomeCard">
+              <div class="result-header">
+                <h3>Waiting for requests...</h3>
+              </div>
+              <div class="result-body">
+                <pre style="color: var(--text-secondary)">
+Login and make API requests to see responses here.
+
+API Field Notes:
+• kpi.power = TODAY's generation in kWh (not watts!)
+• powerflow.bettery = Battery power (yes, typo in API)
+• powerflow.pv = Solar power (same as kpi.pac)
+• GetChartByPlant (chartIndexId=7) = Daily energy stats
+                            </pre
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let tokenData = null;
+      let apiBase = "https://au.semsportal.com/api/";
+      let stations = [];
+
+      const EMPTY_TOKEN = { uid: "", timestamp: 0, token: "", client: "web", version: "", language: "en" };
+
+      function encodeToken(data) {
+        return btoa(JSON.stringify(data));
+      }
+
+      function getHeaders(authenticated = true) {
+        const token = authenticated ? encodeToken(tokenData) : encodeToken(EMPTY_TOKEN);
+        return {
+          "Content-Type": "application/json",
+          Accept: "application/json, text/javascript, */*; q=0.01",
+          token: token,
+          neutral: "4",
+        };
+      }
+
+      function logRequest(endpoint, success) {
+        const log = document.getElementById("requestLog");
+        const time = new Date().toLocaleTimeString();
+        const status = success ? "✅" : "❌";
+        log.innerHTML = `<p>${status} [${time}] ${endpoint}</p>` + log.innerHTML;
+      }
+
+      function safeSetText(id, text) {
+        const el = document.getElementById(id);
+        if (el) {
+          el.textContent = text;
+          el.title = text;
+        }
+      }
+
+      function safeSetHTML(id, html) {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = html;
+      }
+
+      function safeSetStyle(id, prop, value) {
+        const el = document.getElementById(id);
+        if (el) el.style[prop] = value;
+      }
+
+      function safeSetClass(id, className) {
+        const el = document.getElementById(id);
+        if (el) el.className = className;
+      }
+
+      function parsePowerValue(str) {
+        if (!str || str === "--" || str === "") return null;
+        if (typeof str === "number") return str;
+        const match = str.toString().match(/^(-?[\d.]+)\s*(kW|W)?$/i);
+        if (match) {
+          let value = parseFloat(match[1]);
+          if (match[2] && match[2].toLowerCase() === "kw") value *= 1000;
+          return value;
+        }
+        return null;
+      }
+
+      // Reusable function to update energy stats for any time period
+      // prefix examples: "sum-daily", "sum-monthly", "sum-yearly", "sum-alltime"
+      function updateEnergyStats(prefix, modelData) {
+        if (!modelData) return;
+
+        if (modelData.sum !== undefined) {
+          safeSetHTML(
+            `${prefix}-gen`,
+            `${modelData.sum.toLocaleString(undefined, { maximumFractionDigits: 2 })}<span class="unit"> kWh</span>`
+          );
+        }
+        if (modelData.buy !== undefined) {
+          safeSetHTML(
+            `${prefix}-buy`,
+            `${modelData.buy.toLocaleString(undefined, { maximumFractionDigits: 2 })}<span class="unit"> kWh</span>`
+          );
+        }
+        if (modelData.sell !== undefined) {
+          safeSetHTML(
+            `${prefix}-sell`,
+            `${modelData.sell.toLocaleString(undefined, { maximumFractionDigits: 2 })}<span class="unit"> kWh</span>`
+          );
+        }
+        if (modelData.selfUseOfPv !== undefined) {
+          safeSetHTML(
+            `${prefix}-selfuse`,
+            `${modelData.selfUseOfPv.toLocaleString(undefined, {
+              maximumFractionDigits: 2,
+            })}<span class="unit"> kWh</span>`
+          );
+        }
+        if (modelData.consumptionOfLoad !== undefined) {
+          safeSetHTML(
+            `${prefix}-consumption`,
+            `${modelData.consumptionOfLoad.toLocaleString(undefined, {
+              maximumFractionDigits: 2,
+            })}<span class="unit"> kWh</span>`
+          );
+        }
+        if (modelData.charge !== undefined) {
+          safeSetHTML(
+            `${prefix}-charge`,
+            `${modelData.charge.toLocaleString(undefined, { maximumFractionDigits: 2 })}<span class="unit"> kWh</span>`
+          );
+        }
+        if (modelData.disCharge !== undefined) {
+          safeSetHTML(
+            `${prefix}-discharge`,
+            `${modelData.disCharge.toLocaleString(undefined, {
+              maximumFractionDigits: 2,
+            })}<span class="unit"> kWh</span>`
+          );
+        }
+      }
+
+      function updateSummary(data, source) {
+        if (!data || !data.data) return;
+
+        const d = data.data;
+        const info = d.info || {};
+        const kpi = d.kpi || {};
+        const soc = d.soc || [];
+        const powerflow = d.powerflow || {};
+
+        // Status
+        if (info.status !== undefined) {
+          const status = info.status;
+          if (status === 1) {
+            safeSetText("sum-status", "Online");
+            safeSetClass("sum-status", "value online");
+          } else if (status === 0) {
+            safeSetText("sum-status", "Offline");
+            safeSetClass("sum-status", "value offline");
+          } else {
+            safeSetText("sum-status", `Status ${status}`);
+          }
+        }
+
+        if (info.stationname) safeSetText("sum-station-name", info.stationname);
+
+        // Battery SOC
+        if (soc.length > 0 && soc[0].power !== undefined) {
+          const batteryLevel = soc[0].power;
+          safeSetHTML("sum-battery-soc", `${batteryLevel}<span class="unit">%</span>`);
+          safeSetStyle("sum-battery-bar", "width", `${batteryLevel}%`);
+        }
+
+        // Power Flow values
+        if (powerflow.pv !== undefined) {
+          const pvWatts = parsePowerValue(powerflow.pv);
+          if (pvWatts !== null) {
+            safeSetHTML("sum-pv-power", `${pvWatts.toFixed(0)}<span class="unit"> W</span>`);
+          }
+        }
+
+        // Battery power (note: API typo is "bettery")
+        const batteryPower = powerflow.bettery || powerflow.battery;
+        if (batteryPower !== undefined) {
+          const battWatts = parsePowerValue(batteryPower);
+          if (battWatts !== null) {
+            const prefix = battWatts > 0 ? "+" : "";
+            safeSetHTML("sum-battery-power", `${prefix}${battWatts.toFixed(0)}<span class="unit"> W</span>`);
+          }
+        }
+
+        if (powerflow.load !== undefined) {
+          const loadWatts = parsePowerValue(powerflow.load);
+          if (loadWatts !== null) {
+            safeSetHTML("sum-load-power", `${loadWatts.toFixed(0)}<span class="unit"> W</span>`);
+          }
+        }
+
+        if (powerflow.grid !== undefined) {
+          const gridWatts = parsePowerValue(powerflow.grid);
+          if (gridWatts !== null) {
+            safeSetHTML("sum-grid-power", `${gridWatts.toFixed(0)}<span class="unit"> W</span>`);
+          }
+        }
+
+        // Income
+        const currency = kpi.currency || "AUD";
+        if (kpi.day_income !== undefined) {
+          safeSetHTML("sum-daily-income", `${kpi.day_income.toFixed(2)}<span class="unit"> ${currency}</span>`);
+        }
+        if (kpi.total_income !== undefined) {
+          safeSetHTML("sum-total-income", `${kpi.total_income.toLocaleString()}<span class="unit"> ${currency}</span>`);
+        }
+
+        // Last Update
+        if (info.local_date) {
+          const parts = info.local_date.split(" ");
+          safeSetText("sum-last-update", parts.length >= 2 ? parts[1] : info.local_date);
+        }
+      }
+
+      function showResult(title, data, endpoint) {
+        if (data && !data.hasError) updateSummary(data, endpoint);
+
+        const welcomeCard = document.getElementById("welcomeCard");
+        if (welcomeCard) welcomeCard.remove();
+
+        const panel = document.getElementById("resultsPanel");
+        const timestamp = new Date().toLocaleString();
+
+        const card = document.createElement("div");
+        card.className = "result-card";
+        card.innerHTML = `
+                <div class="result-header">
+                    <div>
+                        <h3>📦 ${title}</h3>
+                        <span class="timestamp">${endpoint} • ${timestamp}</span>
+                    </div>
+                    <div class="result-actions">
+                        <button class="btn-secondary" onclick="copyToClipboard(this)">📋 Copy</button>
+                        <button class="btn-secondary" onclick="this.closest('.result-card').remove()">✕</button>
+                    </div>
+                </div>
+                <div class="result-body">
+                    <pre>${syntaxHighlight(JSON.stringify(data, null, 2))}</pre>
+                </div>
+            `;
+
+        const sectionTitle = panel.querySelector(".section-title");
+        if (sectionTitle && sectionTitle.nextSibling) {
+          panel.insertBefore(card, sectionTitle.nextSibling);
+        } else {
+          panel.appendChild(card);
+        }
+      }
+
+      function syntaxHighlight(json) {
+        return json.replace(
+          /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+          function (match) {
+            let cls = "json-number";
+            if (/^"/.test(match)) {
+              cls = /:$/.test(match) ? "json-key" : "json-string";
+            } else if (/true|false/.test(match)) {
+              cls = "json-boolean";
+            } else if (/null/.test(match)) {
+              cls = "json-null";
+            }
+            return `<span class="${cls}">${match}</span>`;
+          }
+        );
+      }
+
+      function copyToClipboard(btn) {
+        const pre = btn.closest(".result-card").querySelector("pre");
+        navigator.clipboard.writeText(pre.textContent).then(() => {
+          const original = btn.textContent;
+          btn.textContent = "✓ Copied!";
+          setTimeout(() => (btn.textContent = original), 2000);
+        });
+      }
+
+      function setLoading(btnId, loading) {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        if (loading) {
+          btn.disabled = true;
+          btn.innerHTML = '<div class="loader"></div> Loading...';
+        } else {
+          btn.disabled = false;
+          const texts = {
+            loginBtn: "Login to LGES",
+            getStationsBtn: "Get Power Stations",
+            getDetailsBtn: "Get Plant Details",
+            getPowerflowBtn: "Get Power Flow",
+            getChartBtn: "Get Today Stats",
+            getMonthlyBtn: "Get This Month Stats",
+            getYearlyBtn: "Get This Year Stats",
+            getAllTimeBtn: "Get All-Time Stats",
+          };
+          btn.innerHTML = `<span>${texts[btnId] || "Submit"}</span>`;
+        }
+      }
+
+      async function login() {
+        const email = document.getElementById("email").value;
+        const password = document.getElementById("password").value;
+
+        if (!email || !password) {
+          alert("Please enter email and password");
+          return;
+        }
+
+        setLoading("loginBtn", true);
+
+        try {
+          const response = await fetch(apiBase + "v2/common/crosslogin", {
+            method: "POST",
+            headers: getHeaders(false),
+            body: JSON.stringify({ account: email, pwd: password, agreement_agreement: 0, is_local: false }),
+          });
+
+          const data = await response.json();
+          logRequest("crosslogin", !data.hasError);
+          showResult("Login Response", data, "v2/common/crosslogin");
+
+          if (data.hasError) {
+            alert("Login failed: " + data.msg);
+            setLoading("loginBtn", false);
+            return;
+          }
+
+          tokenData = {
+            uid: data.data.uid,
+            timestamp: data.data.timestamp,
+            token: data.data.token,
+            client: data.data.client || "web",
+            version: data.data.version || "",
+            language: data.data.language || "en",
+          };
+
+          if (data.api && data.api !== apiBase) apiBase = data.api;
+
+          document.getElementById("loginForm").classList.add("hidden");
+          document.getElementById("loggedInStatus").classList.remove("hidden");
+          document.getElementById("tokenPreview").textContent = `UID: ${tokenData.uid}`;
+          document.getElementById("getStationsBtn").disabled = false;
+        } catch (error) {
+          console.error("Login error:", error);
+          alert("Login failed: " + error.message);
+          logRequest("crosslogin", false);
+        }
+
+        setLoading("loginBtn", false);
+      }
+
+      function logout() {
+        tokenData = null;
+        stations = [];
+        document.getElementById("loginForm").classList.remove("hidden");
+        document.getElementById("loggedInStatus").classList.add("hidden");
+        document.getElementById("stationSelectWrapper").classList.add("hidden");
+        document.getElementById("getStationsBtn").disabled = true;
+        document.getElementById("getDetailsBtn").disabled = true;
+        document.getElementById("getPowerflowBtn").disabled = true;
+        document.getElementById("getChartBtn").disabled = true;
+        document.getElementById("getMonthlyBtn").disabled = true;
+        document.getElementById("getYearlyBtn").disabled = true;
+        document.getElementById("getAllTimeBtn").disabled = true;
+        document.getElementById("stationSelect").innerHTML = '<option value="">-- Select Station --</option>';
+      }
+
+      async function getStations() {
+        if (!tokenData) {
+          alert("Please login first");
+          return;
+        }
+        setLoading("getStationsBtn", true);
+
+        try {
+          const response = await fetch(apiBase + "PowerStation/GetPowerStationIdByOwner", {
+            method: "POST",
+            headers: getHeaders(true),
+            body: JSON.stringify({}),
+          });
+
+          const data = await response.json();
+          logRequest("GetPowerStationIdByOwner", !data.hasError);
+          showResult("Power Stations", data, "PowerStation/GetPowerStationIdByOwner");
+
+          if (!data.hasError && data.data) {
+            const stationData = data.data;
+            if (typeof stationData === "string") {
+              stations = [{ id: stationData, name: stationData.substring(0, 8) }];
+            } else if (Array.isArray(stationData)) {
+              stations = stationData.map((s) => ({
+                id: typeof s === "string" ? s : s.id || s.powerstation_id,
+                name: typeof s === "string" ? s.substring(0, 8) : s.name || s.stationname || s.id?.substring(0, 8),
+              }));
+            } else {
+              stations = [{ id: stationData, name: "Station" }];
+            }
+
+            const select = document.getElementById("stationSelect");
+            select.innerHTML = '<option value="">-- Select Station --</option>';
+            stations.forEach((s) => {
+              select.innerHTML += `<option value="${s.id}">${s.name} (${s.id})</option>`;
+            });
+
+            document.getElementById("stationSelectWrapper").classList.remove("hidden");
+            document.getElementById("getDetailsBtn").disabled = false;
+            document.getElementById("getPowerflowBtn").disabled = false;
+            document.getElementById("getChartBtn").disabled = false;
+            document.getElementById("getMonthlyBtn").disabled = false;
+            document.getElementById("getYearlyBtn").disabled = false;
+            document.getElementById("getAllTimeBtn").disabled = false;
+          }
+        } catch (error) {
+          console.error("Error:", error);
+          alert("Request failed: " + error.message);
+          logRequest("GetPowerStationIdByOwner", false);
+        }
+
+        setLoading("getStationsBtn", false);
+      }
+
+      async function getPlantDetails() {
+        const stationId = document.getElementById("stationSelect").value;
+        if (!stationId) {
+          alert("Please select a station");
+          return;
+        }
+        setLoading("getDetailsBtn", true);
+
+        try {
+          const response = await fetch(apiBase + "v3/PowerStation/GetPlantDetailByPowerstationId", {
+            method: "POST",
+            headers: getHeaders(true),
+            body: JSON.stringify({
+              PowerStationId: stationId,
+              powerStationId: stationId,
+              powerstation_id: stationId,
+              id: stationId,
+            }),
+          });
+
+          const data = await response.json();
+          logRequest("GetPlantDetailByPowerstationId", !data.hasError);
+          showResult("Plant Details", data, "v3/PowerStation/GetPlantDetailByPowerstationId");
+        } catch (error) {
+          console.error("Error:", error);
+          alert("Request failed: " + error.message);
+          logRequest("GetPlantDetailByPowerstationId", false);
+        }
+
+        setLoading("getDetailsBtn", false);
+      }
+
+      async function getPowerflow() {
+        const stationId = document.getElementById("stationSelect").value;
+        if (!stationId) {
+          alert("Please select a station");
+          return;
+        }
+        setLoading("getPowerflowBtn", true);
+
+        try {
+          const response = await fetch(apiBase + "v2/PowerStation/GetPowerflow", {
+            method: "POST",
+            headers: getHeaders(true),
+            body: JSON.stringify({
+              PowerStationId: stationId,
+              powerStationId: stationId,
+              powerstation_id: stationId,
+              id: stationId,
+            }),
+          });
+
+          const data = await response.json();
+          logRequest("GetPowerflow", !data.hasError);
+          showResult("Power Flow", data, "v2/PowerStation/GetPowerflow");
+        } catch (error) {
+          console.error("Error:", error);
+          alert("Request failed: " + error.message);
+          logRequest("GetPowerflow", false);
+        }
+
+        setLoading("getPowerflowBtn", false);
+      }
+
+      async function getEnergyStats() {
+        const stationId = document.getElementById("stationSelect").value;
+        if (!stationId) {
+          alert("Please select a station");
+          return;
+        }
+        setLoading("getChartBtn", true);
+
+        const today = new Date().toISOString().split("T")[0];
+
+        try {
+          const response = await fetch(apiBase + "v2/Charts/GetChartByPlant", {
+            method: "POST",
+            headers: getHeaders(true),
+            body: JSON.stringify({
+              Id: stationId,
+              Date: today,
+              Range: "2", // Daily
+              ChartIndexId: "7",
+              IsDetailFull: false,
+            }),
+          });
+
+          const data = await response.json();
+          logRequest("GetChartByPlant (Today)", !data.hasError);
+          showResult("Today Energy Stats", data, "v2/Charts/GetChartByPlant?Range=2");
+
+          // Update daily summary using the reusable function
+          if (data && !data.hasError && data.data) {
+            updateEnergyStats("sum-daily", data.data.modelData || {});
+          }
+        } catch (error) {
+          console.error("Error:", error);
+          alert("Request failed: " + error.message);
+          logRequest("GetChartByPlant (Today)", false);
+        }
+
+        setLoading("getChartBtn", false);
+      }
+
+      async function getMonthlyStats() {
+        const stationId = document.getElementById("stationSelect").value;
+        if (!stationId) {
+          alert("Please select a station");
+          return;
+        }
+        setLoading("getMonthlyBtn", true);
+
+        const today = new Date().toISOString().split("T")[0];
+
+        try {
+          const response = await fetch(apiBase + "v2/Charts/GetChartByPlant", {
+            method: "POST",
+            headers: getHeaders(true),
+            body: JSON.stringify({
+              Id: stationId,
+              Date: today,
+              Range: "3", // Month
+              ChartIndexId: "7",
+              IsDetailFull: false,
+            }),
+          });
+
+          const data = await response.json();
+          logRequest("GetChartByPlant (This Month)", !data.hasError);
+          showResult("This Month Energy Stats", data, "v2/Charts/GetChartByPlant?Range=3");
+
+          // Update monthly summary using the reusable function
+          if (data && !data.hasError && data.data) {
+            updateEnergyStats("sum-monthly", data.data.modelData || {});
+          }
+        } catch (error) {
+          console.error("Error:", error);
+          alert("Request failed: " + error.message);
+          logRequest("GetChartByPlant (This Month)", false);
+        }
+
+        setLoading("getMonthlyBtn", false);
+      }
+
+      async function getYearlyStats() {
+        const stationId = document.getElementById("stationSelect").value;
+        if (!stationId) {
+          alert("Please select a station");
+          return;
+        }
+        setLoading("getYearlyBtn", true);
+
+        const today = new Date().toISOString().split("T")[0];
+
+        try {
+          const response = await fetch(apiBase + "v2/Charts/GetChartByPlant", {
+            method: "POST",
+            headers: getHeaders(true),
+            body: JSON.stringify({
+              Id: stationId,
+              Date: today,
+              Range: "4", // Year
+              ChartIndexId: "7",
+              IsDetailFull: false,
+            }),
+          });
+
+          const data = await response.json();
+          logRequest("GetChartByPlant (This Year)", !data.hasError);
+          showResult("This Year Energy Stats", data, "v2/Charts/GetChartByPlant?Range=4");
+
+          // Update yearly summary using the reusable function
+          if (data && !data.hasError && data.data) {
+            updateEnergyStats("sum-yearly", data.data.modelData || {});
+          }
+        } catch (error) {
+          console.error("Error:", error);
+          alert("Request failed: " + error.message);
+          logRequest("GetChartByPlant (This Year)", false);
+        }
+
+        setLoading("getYearlyBtn", false);
+      }
+
+      async function getAllTimeStats() {
+        const stationId = document.getElementById("stationSelect").value;
+        if (!stationId) {
+          alert("Please select a station");
+          return;
+        }
+        setLoading("getAllTimeBtn", true);
+
+        const today = new Date().toISOString().split("T")[0];
+
+        try {
+          const response = await fetch(apiBase + "v2/Charts/GetChartByPlant", {
+            method: "POST",
+            headers: getHeaders(true),
+            body: JSON.stringify({
+              Id: stationId,
+              Date: today,
+              Range: "1", // All time
+              ChartIndexId: "7",
+              IsDetailFull: false,
+            }),
+          });
+
+          const data = await response.json();
+          logRequest("GetChartByPlant (All Time)", !data.hasError);
+          showResult("All-Time Energy Stats", data, "v2/Charts/GetChartByPlant?Range=1");
+
+          // Update all-time summary using the reusable function
+          if (data && !data.hasError && data.data) {
+            updateEnergyStats("sum-alltime", data.data.modelData || {});
+          }
+        } catch (error) {
+          console.error("Error:", error);
+          alert("Request failed: " + error.message);
+          logRequest("GetChartByPlant (All Time)", false);
+        }
+
+        setLoading("getAllTimeBtn", false);
+      }
+
+      document.getElementById("password").addEventListener("keypress", function (e) {
+        if (e.key === "Enter") login();
+      });
+    </script>
+  </body>
+</html>

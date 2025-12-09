@@ -1,0 +1,12 @@
+{
+  "domain": "lges_energy",
+  "name": "LG Energy Solutions",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/marktimmins/homeassistant-lges-integration",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/marktimmins/homeassistant-lges-integration/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}
