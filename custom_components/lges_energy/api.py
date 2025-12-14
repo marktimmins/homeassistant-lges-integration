@@ -316,7 +316,6 @@ class LGESApiClient:
         
         stations = await self.get_power_stations()
         all_data = {}
-        today = datetime.now().strftime("%Y-%m-%d")
         
         for station in stations:
             station_id = station.get("id") if isinstance(station, dict) else station
@@ -324,12 +323,26 @@ class LGESApiClient:
                 continue
                 
             try:
+                # Get plant details first - it contains local_date in the plant's timezone
                 plant_details = await self.get_plant_details(station_id)
+                
+                # Extract the date from the plant's local_date (format: "YYYY-MM-DD HH:MM:SS")
+                # This ensures we use the correct date in the plant's timezone, not the HA server's timezone
+                info = plant_details.get("info", {})
+                local_date_str = info.get("local_date", "")
+                if local_date_str:
+                    # Parse date portion from "YYYY-MM-DD HH:MM:SS"
+                    plant_date = local_date_str.split(" ")[0]
+                else:
+                    # Fallback to server time if local_date not available
+                    _LOGGER.warning("No local_date in plant details for station %s, using server time", station_id)
+                    plant_date = datetime.now().strftime("%Y-%m-%d")
+                
                 powerflow = await self.get_powerflow(station_id)
-                daily_energy_stats = await self.get_daily_energy_stats(station_id, today)
-                monthly_energy_stats = await self.get_monthly_energy_stats(station_id, today)
-                yearly_energy_stats = await self.get_yearly_energy_stats(station_id, today)
-                all_time_energy_stats = await self.get_all_time_energy_stats(station_id, today)
+                daily_energy_stats = await self.get_daily_energy_stats(station_id, plant_date)
+                monthly_energy_stats = await self.get_monthly_energy_stats(station_id, plant_date)
+                yearly_energy_stats = await self.get_yearly_energy_stats(station_id, plant_date)
+                all_time_energy_stats = await self.get_all_time_energy_stats(station_id, plant_date)
                 
                 all_data[station_id] = {
                     "station_id": station_id,
