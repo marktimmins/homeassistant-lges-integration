@@ -776,10 +776,14 @@ class LGESAllTimeGenerationSensor(LGESSensor):
 
     @property
     def native_value(self) -> float | None:
-        """Return all-time generation in kWh (from modelData.sum)."""
-        generation = self.all_time_model_data.get("sum")
-        if generation is not None:
-            return float(generation)
+        """Return all-time generation in kWh (all-time + today for real-time accuracy)."""
+        all_time = self.all_time_model_data.get("sum")
+        today = self.model_data.get("sum")
+        if all_time is not None:
+            total = float(all_time)
+            if today is not None:
+                total += float(today)
+            return total
         return None
 
 
@@ -798,10 +802,14 @@ class LGESAllTimeGridImportSensor(LGESSensor):
 
     @property
     def native_value(self) -> float | None:
-        """Return all-time grid import in kWh."""
-        buy = self.all_time_model_data.get("buy")
-        if buy is not None:
-            return float(buy)
+        """Return all-time grid import in kWh (all-time + today for real-time accuracy)."""
+        all_time = self.all_time_model_data.get("buy")
+        today = self.model_data.get("buy")
+        if all_time is not None:
+            total = float(all_time)
+            if today is not None:
+                total += float(today)
+            return total
         return None
 
 
@@ -820,10 +828,14 @@ class LGESAllTimeGridExportSensor(LGESSensor):
 
     @property
     def native_value(self) -> float | None:
-        """Return all-time grid export in kWh."""
-        sell = self.all_time_model_data.get("sell")
-        if sell is not None:
-            return float(sell)
+        """Return all-time grid export in kWh (all-time + today for real-time accuracy)."""
+        all_time = self.all_time_model_data.get("sell")
+        today = self.model_data.get("sell")
+        if all_time is not None:
+            total = float(all_time)
+            if today is not None:
+                total += float(today)
+            return total
         return None
 
 
@@ -842,10 +854,14 @@ class LGESAllTimeSelfUseSensor(LGESSensor):
 
     @property
     def native_value(self) -> float | None:
-        """Return all-time self-consumed solar in kWh."""
-        self_use = self.all_time_model_data.get("selfUseOfPv")
-        if self_use is not None:
-            return float(self_use)
+        """Return all-time self-consumed solar in kWh (all-time + today for real-time accuracy)."""
+        all_time = self.all_time_model_data.get("selfUseOfPv")
+        today = self.model_data.get("selfUseOfPv")
+        if all_time is not None:
+            total = float(all_time)
+            if today is not None:
+                total += float(today)
+            return total
         return None
 
 
@@ -864,10 +880,14 @@ class LGESAllTimeBatteryChargeSensor(LGESSensor):
 
     @property
     def native_value(self) -> float | None:
-        """Return all-time battery charge in kWh."""
-        charge = self.all_time_model_data.get("charge")
-        if charge is not None:
-            return float(charge)
+        """Return all-time battery charge in kWh (all-time + today for real-time accuracy)."""
+        all_time = self.all_time_model_data.get("charge")
+        today = self.model_data.get("charge")
+        if all_time is not None:
+            total = float(all_time)
+            if today is not None:
+                total += float(today)
+            return total
         return None
 
 
@@ -886,10 +906,14 @@ class LGESAllTimeBatteryDischargeSensor(LGESSensor):
 
     @property
     def native_value(self) -> float | None:
-        """Return all-time battery discharge in kWh."""
-        discharge = self.all_time_model_data.get("disCharge")
-        if discharge is not None:
-            return float(discharge)
+        """Return all-time battery discharge in kWh (all-time + today for real-time accuracy)."""
+        all_time = self.all_time_model_data.get("disCharge")
+        today = self.model_data.get("disCharge")
+        if all_time is not None:
+            total = float(all_time)
+            if today is not None:
+                total += float(today)
+            return total
         return None
 
 
@@ -908,10 +932,14 @@ class LGESAllTimeConsumptionSensor(LGESSensor):
 
     @property
     def native_value(self) -> float | None:
-        """Return all-time home consumption in kWh."""
-        consumption = self.all_time_model_data.get("consumptionOfLoad")
-        if consumption is not None:
-            return float(consumption)
+        """Return all-time home consumption in kWh (all-time + today for real-time accuracy)."""
+        all_time = self.all_time_model_data.get("consumptionOfLoad")
+        today = self.model_data.get("consumptionOfLoad")
+        if all_time is not None:
+            total = float(all_time)
+            if today is not None:
+                total += float(today)
+            return total
         return None
 
 

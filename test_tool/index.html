@@ -839,6 +839,8 @@ API Field Notes:
       let tokenData = null;
       let apiBase = "https://au.semsportal.com/api/";
       let stations = [];
+      let plantLocalDate = null; // Stores the plant's local date from GetPlantDetailByPowerstationId
+      let todayModelData = null; // Stores today's energy stats for combining with all-time values
 
       const EMPTY_TOKEN = { uid: "", timestamp: 0, token: "", client: "web", version: "", language: "en" };
 
@@ -953,6 +955,24 @@ API Field Notes:
         }
       }
 
+      // Combine all-time values with today's values for real-time accuracy
+      // (All-time stats from API only update at end of day)
+      function combineWithToday(allTimeData, todayData) {
+        if (!allTimeData) return null;
+        if (!todayData) return allTimeData;
+
+        const combined = {};
+        const fields = ["sum", "buy", "sell", "selfUseOfPv", "consumptionOfLoad", "charge", "disCharge"];
+
+        for (const field of fields) {
+          if (allTimeData[field] !== undefined) {
+            combined[field] = allTimeData[field] + (todayData[field] || 0);
+          }
+        }
+
+        return combined;
+      }
+
       function updateSummary(data, source) {
         if (!data || !data.data) return;
 
@@ -1028,7 +1048,9 @@ API Field Notes:
 
         // Last Update
         if (info.local_date) {
+          // Store the plant's local date for use in API calls
           const parts = info.local_date.split(" ");
+          plantLocalDate = parts[0]; // Extract just the date portion (YYYY-MM-DD)
           safeSetText("sum-last-update", parts.length >= 2 ? parts[1] : info.local_date);
         }
       }
@@ -1310,7 +1332,8 @@ API Field Notes:
         }
         setLoading("getChartBtn", true);
 
-        const today = new Date().toISOString().split("T")[0];
+        // Use plant's local date if available, otherwise fall back to browser date
+        const today = plantLocalDate || new Date().toISOString().split("T")[0];
 
         try {
           const response = await fetch(apiBase + "v2/Charts/GetChartByPlant", {
@@ -1331,7 +1354,9 @@ API Field Notes:
 
           // Update daily summary using the reusable function
           if (data && !data.hasError && data.data) {
-            updateEnergyStats("sum-daily", data.data.modelData || {});
+            const modelData = data.data.modelData || {};
+            todayModelData = modelData; // Store for combining with all-time values
+            updateEnergyStats("sum-daily", modelData);
           }
         } catch (error) {
           console.error("Error:", error);
@@ -1350,7 +1375,8 @@ API Field Notes:
         }
         setLoading("getMonthlyBtn", true);
 
-        const today = new Date().toISOString().split("T")[0];
+        // Use plant's local date if available, otherwise fall back to browser date
+        const today = plantLocalDate || new Date().toISOString().split("T")[0];
 
         try {
           const response = await fetch(apiBase + "v2/Charts/GetChartByPlant", {
@@ -1390,7 +1416,8 @@ API Field Notes:
         }
         setLoading("getYearlyBtn", true);
 
-        const today = new Date().toISOString().split("T")[0];
+        // Use plant's local date if available, otherwise fall back to browser date
+        const today = plantLocalDate || new Date().toISOString().split("T")[0];
 
         try {
           const response = await fetch(apiBase + "v2/Charts/GetChartByPlant", {
@@ -1430,7 +1457,8 @@ API Field Notes:
         }
         setLoading("getAllTimeBtn", true);
 
-        const today = new Date().toISOString().split("T")[0];
+        // Use plant's local date if available, otherwise fall back to browser date
+        const today = plantLocalDate || new Date().toISOString().split("T")[0];
 
         try {
           const response = await fetch(apiBase + "v2/Charts/GetChartByPlant", {
@@ -1449,9 +1477,11 @@ API Field Notes:
           logRequest("GetChartByPlant (All Time)", !data.hasError);
           showResult("All-Time Energy Stats", data, "v2/Charts/GetChartByPlant?Range=1");
 
-          // Update all-time summary using the reusable function
+          // Update all-time summary - combine with today's values for real-time accuracy
           if (data && !data.hasError && data.data) {
-            updateEnergyStats("sum-alltime", data.data.modelData || {});
+            const allTimeData = data.data.modelData || {};
+            const combinedData = combineWithToday(allTimeData, todayModelData);
+            updateEnergyStats("sum-alltime", combinedData);
           }
         } catch (error) {
           console.error("Error:", error);
