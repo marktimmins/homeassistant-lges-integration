@@ -1014,10 +1014,17 @@ API Field Notes:
         }
 
         // Battery power (note: API typo is "bettery")
+        // Use betteryStatus to determine sign: 2=discharging (positive), 3=charging (negative)
         const batteryPower = powerflow.bettery || powerflow.battery;
         if (batteryPower !== undefined) {
-          const battWatts = parsePowerValue(batteryPower);
+          let battWatts = parsePowerValue(batteryPower);
           if (battWatts !== null) {
+            const batteryStatus = powerflow.betteryStatus || powerflow.batteryStatus;
+            if (batteryStatus === 3) {
+              battWatts = -Math.abs(battWatts); // Charging = negative
+            } else if (batteryStatus === 2) {
+              battWatts = Math.abs(battWatts); // Discharging = positive
+            }
             const prefix = battWatts > 0 ? "+" : "";
             safeSetHTML("sum-battery-power", `${prefix}${battWatts.toFixed(0)}<span class="unit"> W</span>`);
           }
@@ -1030,10 +1037,18 @@ API Field Notes:
           }
         }
 
+        // Grid power - use loadStatus to determine sign: 1=buying (positive), -1=selling (negative)
         if (powerflow.grid !== undefined) {
-          const gridWatts = parsePowerValue(powerflow.grid);
+          let gridWatts = parsePowerValue(powerflow.grid);
           if (gridWatts !== null) {
-            safeSetHTML("sum-grid-power", `${gridWatts.toFixed(0)}<span class="unit"> W</span>`);
+            const loadStatus = powerflow.loadStatus;
+            if (loadStatus === -1) {
+              gridWatts = -Math.abs(gridWatts); // Exporting/Selling = negative
+            } else if (loadStatus === 1) {
+              gridWatts = Math.abs(gridWatts); // Importing/Buying = positive
+            }
+            const prefix = gridWatts > 0 ? "+" : "";
+            safeSetHTML("sum-grid-power", `${prefix}${gridWatts.toFixed(0)}<span class="unit"> W</span>`);
           }
         }
 

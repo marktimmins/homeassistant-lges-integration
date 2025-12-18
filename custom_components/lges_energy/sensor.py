@@ -279,10 +279,31 @@ class LGESBatteryPowerSensor(LGESSensor):
 
     @property
     def native_value(self) -> float | None:
-        """Return the battery power (positive = discharging, negative = charging)."""
+        """Return the battery power (positive = discharging, negative = charging).
+        
+        The API returns absolute power values, so we use betteryStatus to determine sign:
+        - betteryStatus = 2: Discharging (positive, power flowing from battery)
+        - betteryStatus = 3: Charging (negative, power flowing into battery)
+        """
         # Note: API has a typo - field is "bettery" not "battery"
         battery = self.powerflow_data.get("bettery") or self.powerflow_data.get("battery")
-        return self.parse_power_value(battery)
+        power = self.parse_power_value(battery)
+        
+        if power is None:
+            return None
+        
+        # Use betteryStatus to determine the sign
+        # betteryStatus = 2 means discharging (positive)
+        # betteryStatus = 3 means charging (negative)
+        battery_status = self.powerflow_data.get("betteryStatus") or self.powerflow_data.get("batteryStatus")
+        
+        if battery_status == 3:  # Charging
+            return -abs(power)
+        elif battery_status == 2:  # Discharging
+            return abs(power)
+        else:
+            # Unknown status, return absolute value (fallback)
+            return abs(power)
 
     @property
     def icon(self) -> str:
@@ -331,9 +352,30 @@ class LGESGridPowerSensor(LGESSensor):
 
     @property
     def native_value(self) -> float | None:
-        """Return the grid power (positive = importing, negative = exporting)."""
+        """Return the grid power (positive = importing, negative = exporting).
+        
+        The API returns absolute power values, so we use loadStatus to determine sign:
+        - loadStatus = 1: Buying from grid (positive, power flowing into home)
+        - loadStatus = -1: Selling to grid (negative, power flowing to grid)
+        """
         grid = self.powerflow_data.get("grid")
-        return self.parse_power_value(grid)
+        power = self.parse_power_value(grid)
+        
+        if power is None:
+            return None
+        
+        # Use loadStatus to determine the sign
+        # loadStatus = 1 means buying from grid (positive/importing)
+        # loadStatus = -1 means selling to grid (negative/exporting)
+        load_status = self.powerflow_data.get("loadStatus")
+        
+        if load_status == -1:  # Selling/Exporting
+            return -abs(power)
+        elif load_status == 1:  # Buying/Importing
+            return abs(power)
+        else:
+            # Unknown status, return absolute value (fallback)
+            return abs(power)
 
     @property
     def icon(self) -> str:
