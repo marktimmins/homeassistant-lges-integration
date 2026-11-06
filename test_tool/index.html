@@ -6,1510 +6,1329 @@
     <title>LGES API Debug Tool</title>
     <style>
       :root {
-        --bg-primary: #0f172a;
-        --bg-secondary: #1e293b;
-        --bg-card: #334155;
-        --text-primary: #f8fafc;
-        --text-secondary: #94a3b8;
+        --bg: #0f172a;
+        --panel: #1e293b;
+        --tile: #273449;
+        --text: #f1f5f9;
+        --muted: #94a3b8;
+        --border: #3b4a61;
         --accent: #22c55e;
-        --accent-hover: #16a34a;
-        --warning: #f59e0b;
-        --error: #ef4444;
-        --border: #475569;
-        --blue: #3b82f6;
-        --purple: #a855f7;
-        --orange: #f97316;
-        --cyan: #06b6d4;
-        --pink: #ec4899;
-        --red: #ef4444;
+        --accent-strong: #16a34a;
+        --warn: #f59e0b;
+        --bad: #ef4444;
+        --code-key: #7dd3fc;
+        --code-string: #86efac;
+        --code-number: #fbbf24;
+        --code-other: #c084fc;
       }
-
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-
-      body {
-        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-        background: var(--bg-primary);
-        color: var(--text-primary);
-        min-height: 100vh;
-        padding: 2rem;
-      }
-
-      .container {
-        max-width: 1600px;
-        margin: 0 auto;
-      }
-
-      header {
-        text-align: center;
-        margin-bottom: 2rem;
-      }
-
-      h1 {
-        font-size: 2rem;
-        background: linear-gradient(135deg, var(--accent), #3b82f6);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin-bottom: 0.5rem;
-      }
-
-      .subtitle {
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-      }
-
-      .warning-banner {
-        background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(239, 68, 68, 0.1));
-        border: 1px solid var(--warning);
-        border-radius: 8px;
-        padding: 1rem;
-        margin-bottom: 2rem;
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-      }
-
-      .warning-banner svg {
-        flex-shrink: 0;
-        color: var(--warning);
-      }
-      .warning-banner p {
-        color: var(--text-secondary);
-        font-size: 0.875rem;
-      }
-
-      .main-grid {
-        display: grid;
-        grid-template-columns: 400px 1fr;
-        gap: 2rem;
-      }
-
-      @media (max-width: 1200px) {
-        .main-grid {
-          grid-template-columns: 1fr;
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f1f5f9;
+          --panel: #ffffff;
+          --tile: #f8fafc;
+          --text: #0f172a;
+          --muted: #64748b;
+          --border: #dbe2ea;
+          --accent: #16a34a;
+          --accent-strong: #15803d;
+          --warn: #b45309;
+          --bad: #dc2626;
+          --code-key: #0369a1;
+          --code-string: #15803d;
+          --code-number: #b45309;
+          --code-other: #7e22ce;
         }
       }
-
-      .card {
-        background: var(--bg-secondary);
-        border-radius: 12px;
-        padding: 1.5rem;
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        padding: 16px;
+      }
+      header {
+        max-width: 1400px;
+        margin: 0 auto 16px;
+      }
+      header h1 {
+        font-size: 1.4rem;
+      }
+      header p {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      main {
+        max-width: 1400px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 320px minmax(0, 1fr);
+        gap: 16px;
+        align-items: start;
+      }
+      @media (max-width: 860px) {
+        main {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      .panel {
+        background: var(--panel);
         border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        min-width: 0;
       }
-
-      .card h2 {
-        font-size: 1.1rem;
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+      .panel h2 {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin: 16px 0 8px;
       }
-
-      .form-group {
-        margin-bottom: 1rem;
+      .panel h2:first-child {
+        margin-top: 0;
       }
-
       label {
         display: block;
-        color: var(--text-secondary);
         font-size: 0.85rem;
-        margin-bottom: 0.5rem;
+        color: var(--muted);
+        margin: 8px 0 4px;
       }
-
-      input[type="text"],
-      input[type="password"],
-      input[type="email"] {
+      input,
+      select {
         width: 100%;
-        padding: 0.75rem;
-        background: var(--bg-card);
-        border: 1px solid var(--border);
+        padding: 9px 10px;
         border-radius: 8px;
-        color: var(--text-primary);
-        font-size: 0.9rem;
-        transition: border-color 0.2s;
+        border: 1px solid var(--border);
+        background: var(--tile);
+        color: var(--text);
+        font: inherit;
       }
-
-      input:focus {
-        outline: none;
+      button {
+        font: inherit;
+        cursor: pointer;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--tile);
+        color: var(--text);
+        padding: 8px 12px;
+      }
+      button:hover:not(:disabled) {
         border-color: var(--accent);
       }
-
-      button {
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      button.primary {
         width: 100%;
-        padding: 0.75rem;
-        border: none;
-        border-radius: 8px;
-        font-size: 0.9rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-      }
-
-      .btn-primary {
+        margin-top: 12px;
         background: var(--accent);
-        color: var(--bg-primary);
+        border-color: var(--accent);
+        color: #fff;
+        font-weight: 600;
+        padding: 10px 12px;
       }
-      .btn-primary:hover {
-        background: var(--accent-hover);
+      button.primary:hover:not(:disabled) {
+        background: var(--accent-strong);
       }
-      .btn-primary:disabled {
-        background: var(--border);
-        cursor: not-allowed;
+      .buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
       }
-
-      .btn-secondary {
-        background: var(--bg-card);
-        color: var(--text-primary);
-        border: 1px solid var(--border);
+      .buttons.single {
+        grid-template-columns: 1fr;
       }
-      .btn-secondary:hover {
-        background: var(--border);
-      }
-      .btn-secondary:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-
-      .status {
-        display: flex;
-        align-items: center;
-        padding: 0.75rem;
-        border-radius: 8px;
+      .buttons button {
         font-size: 0.85rem;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
-
-      .status.success {
-        background: rgba(34, 197, 94, 0.1);
-        border: 1px solid var(--accent);
+      .group-title {
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin: 12px 0 6px;
+      }
+      .session {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .session div {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .note {
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin-top: 8px;
+      }
+      .message {
+        margin-top: 12px;
+        font-size: 0.85rem;
+        white-space: pre-line;
+      }
+      .message.error {
+        color: var(--bad);
+      }
+      .message.ok {
         color: var(--accent);
       }
-
-      .api-buttons {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        margin-top: 1.5rem;
-      }
-
-      .divider {
-        height: 1px;
-        background: var(--border);
-        margin: 1.5rem 0;
-      }
-
-      .station-select {
-        width: 100%;
-        padding: 0.75rem;
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        color: var(--text-primary);
-        font-size: 0.9rem;
-        margin-bottom: 0.5rem;
-      }
-
-      .station-select:focus {
-        outline: none;
-        border-color: var(--accent);
-      }
-
       .hidden {
         display: none !important;
       }
-
-      .token-display {
-        background: var(--bg-card);
-        padding: 0.75rem;
-        border-radius: 8px;
-        font-family: monospace;
-        font-size: 0.7rem;
-        word-break: break-all;
-        color: var(--text-secondary);
-        margin-top: 0.5rem;
-      }
-
-      /* Summary Dashboard */
-      .summary-section {
-        margin-bottom: 2rem;
-      }
-
-      .summary-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 0.75rem;
-      }
-
-      .summary-card {
-        background: var(--bg-secondary);
-        border-radius: 10px;
-        padding: 0.875rem;
-        border: 1px solid var(--border);
-        position: relative;
-        overflow: hidden;
+      .tabs {
         display: flex;
-        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 12px;
       }
-
-      .summary-card::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-      }
-
-      .summary-card.power::before {
-        background: var(--accent);
-      }
-      .summary-card.battery::before {
-        background: var(--blue);
-      }
-      .summary-card.energy::before {
-        background: var(--purple);
-      }
-      .summary-card.income::before {
-        background: var(--orange);
-      }
-      .summary-card.status::before {
-        background: var(--warning);
-      }
-      .summary-card.info::before {
-        background: var(--cyan);
-      }
-      .summary-card.system::before {
-        background: var(--pink);
-      }
-      .summary-card.flow::before {
-        background: var(--accent);
-      }
-      .summary-card.grid-power::before {
-        background: var(--red);
-      }
-      .summary-card.load::before {
-        background: var(--orange);
-      }
-
-      .summary-card .icon {
-        font-size: 1.1rem;
-        margin-bottom: 0.35rem;
-      }
-
-      .summary-card .label {
-        font-size: 0.65rem;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 0.2rem;
-      }
-
-      .summary-card .value {
-        font-size: 1.2rem;
-        font-weight: 700;
-        word-wrap: break-word;
-        overflow-wrap: break-word;
-      }
-
-      .summary-card .unit {
-        font-size: 0.75rem;
-        color: var(--text-secondary);
-        font-weight: 400;
-      }
-
-      .summary-card .subvalue {
-        font-size: 0.65rem;
-        color: var(--text-secondary);
-        margin-top: 0.2rem;
-        word-wrap: break-word;
-      }
-
-      .summary-card .value.online {
+      .tabs button[aria-selected="true"] {
+        border-color: var(--accent);
         color: var(--accent);
+        font-weight: 600;
       }
-      .summary-card .value.offline {
-        color: var(--error);
-      }
-
-      .no-data {
-        color: var(--text-secondary);
-        font-style: italic;
-      }
-
-      /* Results Panel */
-      .results-section {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-      }
-
-      .result-card {
-        background: var(--bg-secondary);
-        border-radius: 12px;
-        border: 1px solid var(--border);
-        overflow: hidden;
-      }
-
-      .result-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 1rem;
-        background: var(--bg-card);
-        border-bottom: 1px solid var(--border);
-      }
-
-      .result-header h3 {
-        font-size: 0.95rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-      }
-      .result-header .timestamp {
+      .badge {
+        display: inline-block;
+        min-width: 1.4em;
+        padding: 0 6px;
+        margin-left: 6px;
+        border-radius: 999px;
+        background: var(--border);
+        color: var(--text);
         font-size: 0.75rem;
-        color: var(--text-secondary);
+        text-align: center;
       }
-
-      .result-actions {
-        display: flex;
-        gap: 0.5rem;
+      section + section {
+        margin-top: 20px;
       }
-      .result-actions button {
-        width: auto;
-        padding: 0.5rem 0.75rem;
-        font-size: 0.75rem;
+      section h3 {
+        font-size: 1rem;
+        margin-bottom: 8px;
       }
-
-      .result-body {
-        max-height: 280px;
-        overflow: auto;
+      .results {
+        container-type: inline-size;
       }
-
-      pre {
-        padding: 1rem;
-        font-family: "Fira Code", "Consolas", monospace;
-        font-size: 0.7rem;
-        line-height: 1.4;
-        white-space: pre-wrap;
-        word-break: break-all;
+      /* Four tiles per row, or two in a narrow window, so rows always line up. */
+      .tiles {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
       }
-
-      .json-key {
-        color: #7dd3fc;
-      }
-      .json-string {
-        color: #86efac;
-      }
-      .json-number {
-        color: #fcd34d;
-      }
-      .json-boolean {
-        color: #f472b6;
-      }
-      .json-null {
-        color: #94a3b8;
-      }
-
-      .loader {
-        width: 18px;
-        height: 18px;
-        border: 2px solid var(--bg-primary);
-        border-top-color: transparent;
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-      }
-
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
+      @container (max-width: 620px) {
+        .tiles {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
         }
       }
-
-      .right-panel {
-        display: flex;
-        flex-direction: column;
-        gap: 1.5rem;
+      .tile {
+        background: var(--tile);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        min-width: 0;
       }
-
-      .section-title {
-        font-size: 1rem;
-        color: var(--text-secondary);
-        margin-bottom: 0.75rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-      }
-
-      .battery-bar {
-        height: 5px;
-        background: var(--bg-card);
-        border-radius: 3px;
+      .tile .name,
+      .tile .value,
+      .tile .hint {
+        white-space: nowrap;
         overflow: hidden;
-        margin-top: 0.35rem;
+        text-overflow: ellipsis;
       }
-
-      .battery-bar-fill {
-        height: 100%;
-        background: linear-gradient(90deg, var(--accent), #3b82f6);
-        border-radius: 3px;
-        transition: width 0.3s ease;
+      .tile .name {
+        font-size: 0.8rem;
+        color: var(--muted);
       }
-
-      .section-divider {
-        grid-column: 1 / -1;
-        font-size: 0.7rem;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        padding: 0.5rem 0;
+      .tile .value {
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+      .unit {
+        font-size: 0.8rem;
+        font-weight: 400;
+        color: var(--muted);
+        margin-left: 3px;
+      }
+      .tile .hint {
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+      .pending {
+        color: var(--muted);
+        font-weight: 400;
+      }
+      .missing {
+        color: var(--warn);
+        font-size: 0.95rem;
+        font-weight: 500;
+      }
+      .good {
+        color: var(--accent);
+      }
+      .bad {
+        color: var(--bad);
+      }
+      .table-wrap {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+      }
+      th,
+      td {
+        text-align: right;
+        padding: 7px 10px;
         border-bottom: 1px solid var(--border);
-        margin-bottom: 0.25rem;
+        white-space: nowrap;
+      }
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+      th {
+        color: var(--muted);
+        font-weight: 500;
+        font-size: 0.8rem;
+      }
+      tr.active td {
+        color: var(--bad);
+      }
+      .responses details {
+        background: var(--tile);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        margin-bottom: 8px;
+      }
+      .responses summary {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 9px 12px;
+        cursor: pointer;
+        font-size: 0.9rem;
+      }
+      .responses summary .what {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .responses summary .when {
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+      .responses summary button {
+        padding: 3px 8px;
+        font-size: 0.8rem;
+      }
+      .responses pre {
+        margin: 0;
+        padding: 12px;
+        border-top: 1px solid var(--border);
+        max-height: 480px;
+        overflow: auto;
+        font: 12.5px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+      }
+      .json-key {
+        color: var(--code-key);
+      }
+      .json-string {
+        color: var(--code-string);
+      }
+      .json-number {
+        color: var(--code-number);
+      }
+      .json-other {
+        color: var(--code-other);
+      }
+      .empty {
+        color: var(--muted);
+        padding: 24px 0;
+        text-align: center;
       }
     </style>
   </head>
   <body>
-    <div class="container">
-      <header>
-        <h1>⚡ LGES API Debug Tool</h1>
-        <p class="subtitle">Test LG Energy Solutions API responses for Home Assistant integration</p>
-      </header>
+    <header>
+      <h1>☀️ LGES API Debug Tool</h1>
+      <p>See what the Solarportal+ (SEMS+) API returns for your account, laid out as the Home Assistant sensors.</p>
+    </header>
 
-      <div class="warning-banner">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-          <line x1="12" y1="9" x2="12" y2="13" />
-          <circle cx="12" cy="17" r="1" />
-        </svg>
-        <p><strong>Rate Limit Warning:</strong> This API has rate limits. Only make requests when necessary.</p>
-      </div>
+    <main>
+      <div class="panel">
+        <div id="loginForm">
+          <h2>1. Log in</h2>
+          <label for="email">Email address</label>
+          <input type="email" id="email" placeholder="you@example.com" autocomplete="email" />
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+          <button class="primary" id="loginBtn" onclick="login()">Log in</button>
+          <p class="note">Use your login for au.solarportalplus.com. It's only sent to the Solarportal+ and GoodWe SEMS+ servers.</p>
+        </div>
 
-      <div class="main-grid">
-        <!-- Control Panel -->
-        <div class="control-panel">
-          <div class="card">
-            <h2>🔐 Authentication</h2>
+        <div id="loggedIn" class="hidden">
+          <h2>1. Logged in</h2>
+          <div class="session" id="sessionInfo"></div>
+          <button onclick="logout()" style="margin-top: 8px">Log out</button>
 
-            <div id="loginForm">
-              <div class="form-group">
-                <label for="email">Email Address</label>
-                <input type="email" id="email" placeholder="your.email@example.com" autocomplete="email" />
-              </div>
-              <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
-              </div>
-              <button class="btn-primary" id="loginBtn" onclick="login()">
-                <span>Login to LGES</span>
-              </button>
-            </div>
+          <h2>2. Choose your system</h2>
+          <select id="stationSelect" onchange="onStationChange()"></select>
 
-            <div id="loggedInStatus" class="hidden">
-              <div class="status success">✓ Authenticated successfully</div>
-              <div class="token-display" id="tokenPreview"></div>
-              <button class="btn-secondary" onclick="logout()" style="margin-top: 1rem">Logout</button>
-            </div>
+          <h2>3. Load data</h2>
+          <button class="primary station-btn" id="fetchAllBtn" onclick="fetchEverything()">Fetch Everything</button>
+          <p class="note">Loads everything Home Assistant uses. Or run one request at a time:</p>
 
-            <div class="divider"></div>
-
-            <h2>📡 API Endpoints</h2>
-
-            <div class="api-buttons">
-              <button class="btn-secondary" id="getStationsBtn" onclick="getStations()" disabled>
-                Get Power Stations
-              </button>
-
-              <div id="stationSelectWrapper" class="hidden">
-                <label for="stationSelect">Select Station</label>
-                <select id="stationSelect" class="station-select">
-                  <option value="">-- Select Station --</option>
-                </select>
-              </div>
-
-              <button class="btn-secondary" id="getDetailsBtn" onclick="getPlantDetails()" disabled>
-                Get Plant Details
-              </button>
-              <button class="btn-secondary" id="getPowerflowBtn" onclick="getPowerflow()" disabled>
-                Get Power Flow
-              </button>
-              <button class="btn-secondary" id="getChartBtn" onclick="getEnergyStats()" disabled>
-                Get Today Stats
-              </button>
-              <button class="btn-secondary" id="getMonthlyBtn" onclick="getMonthlyStats()" disabled>
-                Get This Month Stats
-              </button>
-              <button class="btn-secondary" id="getYearlyBtn" onclick="getYearlyStats()" disabled>
-                Get This Year Stats
-              </button>
-              <button class="btn-secondary" id="getAllTimeBtn" onclick="getAllTimeStats()" disabled>
-                Get All-Time Stats
-              </button>
-            </div>
+          <div class="group-title">Live data</div>
+          <div class="buttons single">
+            <button class="station-btn" id="flowBtn" onclick="runStep('flowBtn', loadFlow)">Power flow &amp; status</button>
+            <button class="station-btn" id="readingsBtn" onclick="runStep('readingsBtn', loadInverterReadings)">Inverter readings</button>
+            <button class="station-btn" id="alarmsBtn" onclick="runStep('alarmsBtn', loadAlarms)">Alarms</button>
           </div>
 
-          <div class="card" style="margin-top: 1rem">
-            <h2>📋 Request Log</h2>
-            <div id="requestLog" style="font-size: 0.8rem; color: var(--text-secondary)">
-              <p>No requests made yet.</p>
-            </div>
+          <div class="group-title">System</div>
+          <div class="buttons single">
+            <button class="station-btn" id="detailsBtn" onclick="runStep('detailsBtn', loadDetails)">Station details (capacities)</button>
+            <button class="station-btn" id="devicesBtn" onclick="runStep('devicesBtn', loadDevices)">Devices &amp; batteries</button>
+          </div>
+
+          <div class="group-title">Energy totals</div>
+          <div class="buttons">
+            <button class="station-btn" id="todayBtn" onclick="runStep('todayBtn', loadToday)">Today</button>
+            <button class="station-btn" id="monthBtn" onclick="runStep('monthBtn', loadMonth)">This month</button>
+            <button class="station-btn" id="yearBtn" onclick="runStep('yearBtn', loadYear)">This year</button>
+            <button class="station-btn" id="allTimeBtn" onclick="runStep('allTimeBtn', loadAllTime)">All time</button>
+          </div>
+
+          <div class="group-title">Income</div>
+          <div class="buttons single">
+            <button class="station-btn" id="incomeBtn" onclick="runStep('incomeBtn', loadIncome)">Daily &amp; total income</button>
           </div>
         </div>
 
-        <!-- Right Panel: Summary + Results -->
-        <div class="right-panel">
-          <!-- Summary Dashboard -->
-          <div class="summary-section">
-            <div class="summary-grid" id="summaryGrid">
-              <!-- Plant Details Row -->
-              <div class="section-divider">🏭 Plant Details</div>
-              <div class="summary-card status">
-                <div class="icon">📡</div>
-                <div class="label">Status</div>
-                <div class="value no-data" id="sum-status">--</div>
-                <div class="subvalue" id="sum-station-name">No data</div>
-              </div>
-              <div class="summary-card battery">
-                <div class="icon">🔋</div>
-                <div class="label">Battery SOC</div>
-                <div class="value" id="sum-battery-soc">--<span class="unit">%</span></div>
-                <div class="battery-bar">
-                  <div class="battery-bar-fill" id="sum-battery-bar" style="width: 0%"></div>
-                </div>
-              </div>
-              <div class="summary-card system">
-                <div class="icon">🕐</div>
-                <div class="label">Last Update</div>
-                <div class="value" id="sum-last-update" style="font-size: 1rem">--</div>
-                <div class="subvalue">info.local_date</div>
-              </div>
-              <div class="summary-card energy">
-                <div class="icon">💵</div>
-                <div class="label">Daily Income</div>
-                <div class="value" id="sum-daily-income">--<span class="unit"> AUD</span></div>
-                <div class="subvalue">kpi.day_income</div>
-              </div>
-              <div class="summary-card energy">
-                <div class="icon">💰</div>
-                <div class="label">Total Income</div>
-                <div class="value" id="sum-total-income">--<span class="unit"> AUD</span></div>
-                <div class="subvalue">kpi.total_income</div>
-              </div>
+        <div class="message" id="message"></div>
+      </div>
 
-              <!-- Power Flow Row -->
-              <div class="section-divider">⚡ Real-Time Power Flow (data.powerflow)</div>
-              <div class="summary-card flow">
-                <div class="icon">☀️</div>
-                <div class="label">Solar (PV)</div>
-                <div class="value" id="sum-pv-power">--<span class="unit"> W</span></div>
-                <div class="subvalue">powerflow.pv</div>
-              </div>
-              <div class="summary-card battery">
-                <div class="icon">🔋</div>
-                <div class="label">Battery</div>
-                <div class="value" id="sum-battery-power">--<span class="unit"> W</span></div>
-                <div class="subvalue">powerflow.bettery</div>
-              </div>
-              <div class="summary-card load">
-                <div class="icon">🏠</div>
-                <div class="label">Load (Home)</div>
-                <div class="value" id="sum-load-power">--<span class="unit"> W</span></div>
-                <div class="subvalue">powerflow.load</div>
-              </div>
-              <div class="summary-card grid-power">
-                <div class="icon">🔌</div>
-                <div class="label">Grid</div>
-                <div class="value" id="sum-grid-power">--<span class="unit"> W</span></div>
-                <div class="subvalue">powerflow.grid</div>
-              </div>
-
-              <!-- Today Energy Stats -->
-              <div class="section-divider">📊 Today Energy Stats</div>
-              <div class="summary-card energy">
-                <div class="icon">☀️</div>
-                <div class="label">Generated (Today)</div>
-                <div class="value" id="sum-daily-gen">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">modelData.sum</div>
-              </div>
-              <div class="summary-card grid-power">
-                <div class="icon">📥</div>
-                <div class="label">Grid Import (Today)</div>
-                <div class="value" id="sum-daily-buy">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">modelData.buy</div>
-              </div>
-              <div class="summary-card flow">
-                <div class="icon">📤</div>
-                <div class="label">Grid Export (Today)</div>
-                <div class="value" id="sum-daily-sell">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">modelData.sell</div>
-              </div>
-              <div class="summary-card energy">
-                <div class="icon">🏠</div>
-                <div class="label">Self Use (Today)</div>
-                <div class="value" id="sum-daily-selfuse">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">modelData.selfUseOfPv</div>
-              </div>
-              <div class="summary-card load">
-                <div class="icon">⚡</div>
-                <div class="label">Consumption (Today)</div>
-                <div class="value" id="sum-daily-consumption">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">modelData.consumptionOfLoad</div>
-              </div>
-              <div class="summary-card battery">
-                <div class="icon">🔼</div>
-                <div class="label">Batt Charge (Today)</div>
-                <div class="value" id="sum-daily-charge">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">modelData.charge</div>
-              </div>
-              <div class="summary-card battery">
-                <div class="icon">🔽</div>
-                <div class="label">Batt Discharge (Today)</div>
-                <div class="value" id="sum-daily-discharge">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">modelData.disCharge</div>
-              </div>
-
-              <!-- This Month Energy Stats -->
-              <div class="section-divider">📅 This Month Energy Stats</div>
-              <div class="summary-card energy">
-                <div class="icon">☀️</div>
-                <div class="label">Generated (This Month)</div>
-                <div class="value" id="sum-monthly-gen">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">monthly.modelData.sum</div>
-              </div>
-              <div class="summary-card grid-power">
-                <div class="icon">📥</div>
-                <div class="label">Grid Import (This Month)</div>
-                <div class="value" id="sum-monthly-buy">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">monthly.modelData.buy</div>
-              </div>
-              <div class="summary-card flow">
-                <div class="icon">📤</div>
-                <div class="label">Grid Export (This Month)</div>
-                <div class="value" id="sum-monthly-sell">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">monthly.modelData.sell</div>
-              </div>
-              <div class="summary-card energy">
-                <div class="icon">🏠</div>
-                <div class="label">Self Use (This Month)</div>
-                <div class="value" id="sum-monthly-selfuse">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">monthly.modelData.selfUseOfPv</div>
-              </div>
-              <div class="summary-card load">
-                <div class="icon">⚡</div>
-                <div class="label">Consumption (This Month)</div>
-                <div class="value" id="sum-monthly-consumption">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">monthly.modelData.consumptionOfLoad</div>
-              </div>
-              <div class="summary-card battery">
-                <div class="icon">🔼</div>
-                <div class="label">Batt Charge (This Month)</div>
-                <div class="value" id="sum-monthly-charge">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">monthly.modelData.charge</div>
-              </div>
-              <div class="summary-card battery">
-                <div class="icon">🔽</div>
-                <div class="label">Batt Discharge (This Month)</div>
-                <div class="value" id="sum-monthly-discharge">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">monthly.modelData.disCharge</div>
-              </div>
-
-              <!-- This Year Energy Stats -->
-              <div class="section-divider">📆 This Year Energy Stats</div>
-              <div class="summary-card energy">
-                <div class="icon">☀️</div>
-                <div class="label">Generated (This Year)</div>
-                <div class="value" id="sum-yearly-gen">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">yearly.modelData.sum</div>
-              </div>
-              <div class="summary-card grid-power">
-                <div class="icon">📥</div>
-                <div class="label">Grid Import (This Year)</div>
-                <div class="value" id="sum-yearly-buy">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">yearly.modelData.buy</div>
-              </div>
-              <div class="summary-card flow">
-                <div class="icon">📤</div>
-                <div class="label">Grid Export (This Year)</div>
-                <div class="value" id="sum-yearly-sell">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">yearly.modelData.sell</div>
-              </div>
-              <div class="summary-card energy">
-                <div class="icon">🏠</div>
-                <div class="label">Self Use (This Year)</div>
-                <div class="value" id="sum-yearly-selfuse">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">yearly.modelData.selfUseOfPv</div>
-              </div>
-              <div class="summary-card load">
-                <div class="icon">⚡</div>
-                <div class="label">Consumption (This Year)</div>
-                <div class="value" id="sum-yearly-consumption">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">yearly.modelData.consumptionOfLoad</div>
-              </div>
-              <div class="summary-card battery">
-                <div class="icon">🔼</div>
-                <div class="label">Batt Charge (This Year)</div>
-                <div class="value" id="sum-yearly-charge">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">yearly.modelData.charge</div>
-              </div>
-              <div class="summary-card battery">
-                <div class="icon">🔽</div>
-                <div class="label">Batt Discharge (This Year)</div>
-                <div class="value" id="sum-yearly-discharge">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">yearly.modelData.disCharge</div>
-              </div>
-
-              <!-- All-Time Energy Stats -->
-              <div class="section-divider">🌍 All-Time Energy Stats</div>
-              <div class="summary-card energy">
-                <div class="icon">☀️</div>
-                <div class="label">Generated (All Time)</div>
-                <div class="value" id="sum-alltime-gen">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">allTime.modelData.sum</div>
-              </div>
-              <div class="summary-card grid-power">
-                <div class="icon">📥</div>
-                <div class="label">Grid Import (All Time)</div>
-                <div class="value" id="sum-alltime-buy">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">allTime.modelData.buy</div>
-              </div>
-              <div class="summary-card flow">
-                <div class="icon">📤</div>
-                <div class="label">Grid Export (All Time)</div>
-                <div class="value" id="sum-alltime-sell">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">allTime.modelData.sell</div>
-              </div>
-              <div class="summary-card energy">
-                <div class="icon">🏠</div>
-                <div class="label">Self Use (All Time)</div>
-                <div class="value" id="sum-alltime-selfuse">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">allTime.modelData.selfUseOfPv</div>
-              </div>
-              <div class="summary-card load">
-                <div class="icon">⚡</div>
-                <div class="label">Consumption (All Time)</div>
-                <div class="value" id="sum-alltime-consumption">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">allTime.modelData.consumptionOfLoad</div>
-              </div>
-              <div class="summary-card battery">
-                <div class="icon">🔼</div>
-                <div class="label">Batt Charge (All Time)</div>
-                <div class="value" id="sum-alltime-charge">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">allTime.modelData.charge</div>
-              </div>
-              <div class="summary-card battery">
-                <div class="icon">🔽</div>
-                <div class="label">Batt Discharge (All Time)</div>
-                <div class="value" id="sum-alltime-discharge">--<span class="unit"> kWh</span></div>
-                <div class="subvalue">allTime.modelData.disCharge</div>
-              </div>
-            </div>
+      <div class="panel results">
+        <div class="tabs" role="tablist">
+          <button role="tab" id="sensorsTab" aria-selected="true" onclick="showTab('sensors')">Sensors</button>
+          <button role="tab" id="rawTab" aria-selected="false" onclick="showTab('raw')">
+            Raw responses<span class="badge" id="rawCount">0</span>
+          </button>
+        </div>
+        <div id="sensorsView"></div>
+        <div id="rawView" class="hidden">
+          <div style="display: flex; justify-content: flex-end; margin-bottom: 8px">
+            <button onclick="clearResponses()">Clear</button>
           </div>
-
-          <!-- Results Panel -->
-          <div class="results-section" id="resultsPanel">
-            <div class="section-title">📄 Raw API Responses</div>
-            <div class="result-card" id="welcomeCard">
-              <div class="result-header">
-                <h3>Waiting for requests...</h3>
-              </div>
-              <div class="result-body">
-                <pre style="color: var(--text-secondary)">
-Login and make API requests to see responses here.
-
-API Field Notes:
-• kpi.power = TODAY's generation in kWh (not watts!)
-• powerflow.bettery = Battery power (yes, typo in API)
-• powerflow.pv = Solar power (same as kpi.pac)
-• GetChartByPlant (chartIndexId=7) = Daily energy stats
-                            </pre
-                >
-              </div>
-            </div>
-          </div>
+          <div class="responses" id="responses"><p class="empty">No requests yet.</p></div>
         </div>
       </div>
-    </div>
+    </main>
 
     <script>
-      let tokenData = null;
-      let apiBase = "https://au.semsportal.com/api/";
-      let stations = [];
-      let plantLocalDate = null; // Stores the plant's local date from GetPlantDetailByPowerstationId
-      let todayModelData = null; // Stores today's energy stats for combining with all-time values
+      // ==== pure helpers (no DOM; kept in step with custom_components/lges_energy/api.py) ====
+      const LOGIN_HOSTS = [
+        { url: "https://au.solarportalplus.com/web/sems/sems-user/api/v1/auth/cross-login", neutral: "1", label: "Solarportal+" },
+        { url: "https://semsplus.goodwe.com/web/sems/sems-user/api/v1/auth/cross-login", neutral: "0", label: "GoodWe SEMS+" },
+      ];
+      const DEFAULT_GATEWAY = "https://au-gateway.semsportal.com";
+      const PLANT_API = "/web/sems/sems-plant/api";
+      const ALARM_PATH = "/web/sems/sems-alarm/api/v2/alarm/page";
+      const ALARM_LOOKBACK_DAYS = 90;
+      const SUCCESS_CODES = ["00000", "0", 0];
+      const AUTH_EXPIRED_CODES = ["100002", "C0602", "C0607"];
+      const EARLIEST_STATS_YEAR = 2015;
+      const EMPTY_WEB_TOKEN = { uid: "", timestamp: 0, token: "", client: "semsPlusWeb", version: "", language: "en" };
+      const STATISTICS_ITEM_MAP = {
+        proSystemTotalStats: "generation",
+        proPurchaseStats: "grid_import",
+        proGridStats: "grid_export",
+        proSelfConsumStats: "self_use",
+        proConsumStats: "consumption",
+        proCharStats: "battery_charge",
+        proDischarStats: "battery_discharge",
+      };
+      const STATISTICS_SUMMARY_MAP = {
+        production: "proSystemTotalStats",
+        proPurchase: "proPurchaseStats",
+        proGrid: "proGridStats",
+        proSelfConsum: "proSelfConsumStats",
+        proConsum: "proConsumStats",
+        proChar: "proCharStats",
+        proDischar: "proDischarStats",
+      };
+      const STATISTICS_RATE_MAP = { proSelfConsumRate: "self_consumption_rate", contributionRate: "self_sufficiency" };
 
-      const EMPTY_TOKEN = { uid: "", timestamp: 0, token: "", client: "web", version: "", language: "en" };
-
-      function encodeToken(data) {
-        return btoa(JSON.stringify(data));
-      }
-
-      function getHeaders(authenticated = true) {
-        const token = authenticated ? encodeToken(tokenData) : encodeToken(EMPTY_TOKEN);
-        return {
-          "Content-Type": "application/json",
-          Accept: "application/json, text/javascript, */*; q=0.01",
-          token: token,
-          neutral: "4",
-        };
-      }
-
-      function logRequest(endpoint, success) {
-        const log = document.getElementById("requestLog");
-        const time = new Date().toLocaleTimeString();
-        const status = success ? "✅" : "❌";
-        log.innerHTML = `<p>${status} [${time}] ${endpoint}</p>` + log.innerHTML;
-      }
-
-      function safeSetText(id, text) {
-        const el = document.getElementById(id);
-        if (el) {
-          el.textContent = text;
-          el.title = text;
+      // MD5 and SHA-256 in plain JS (WebCrypto has no MD5, and crypto.subtle
+      // is missing on some file:// pages).
+      function md5(str) {
+        const bytes = new TextEncoder().encode(str);
+        const S = [7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21];
+        const K = [];
+        for (let i = 0; i < 64; i++) K[i] = Math.floor(Math.abs(Math.sin(i + 1)) * 2 ** 32) >>> 0;
+        const len = bytes.length;
+        const nBlocks = ((len + 8) >>> 6) + 1;
+        const words = new Uint32Array(nBlocks * 16);
+        for (let i = 0; i < len; i++) words[i >> 2] |= bytes[i] << ((i % 4) * 8);
+        words[len >> 2] |= 0x80 << ((len % 4) * 8);
+        words[nBlocks * 16 - 2] = (len * 8) >>> 0;
+        words[nBlocks * 16 - 1] = Math.floor(len / 0x20000000);
+        let a0 = 0x67452301, b0 = 0xefcdab89, c0 = 0x98badcfe, d0 = 0x10325476;
+        for (let blk = 0; blk < nBlocks; blk++) {
+          let A = a0, B = b0, C = c0, D = d0;
+          for (let i = 0; i < 64; i++) {
+            let F, g;
+            if (i < 16) [F, g] = [(B & C) | (~B & D), i];
+            else if (i < 32) [F, g] = [(D & B) | (~D & C), (5 * i + 1) % 16];
+            else if (i < 48) [F, g] = [B ^ C ^ D, (3 * i + 5) % 16];
+            else [F, g] = [C ^ (B | ~D), (7 * i) % 16];
+            F = (F + A + K[i] + words[blk * 16 + g]) >>> 0;
+            const s = S[(i >> 4) * 4 + (i % 4)];
+            A = D;
+            D = C;
+            C = B;
+            B = (B + ((F << s) | (F >>> (32 - s)))) >>> 0;
+          }
+          a0 = (a0 + A) >>> 0;
+          b0 = (b0 + B) >>> 0;
+          c0 = (c0 + C) >>> 0;
+          d0 = (d0 + D) >>> 0;
         }
+        return [a0, b0, c0, d0]
+          .map((w) => [0, 8, 16, 24].map((sh) => ((w >>> sh) & 0xff).toString(16).padStart(2, "0")).join(""))
+          .join("");
       }
 
-      function safeSetHTML(id, html) {
-        const el = document.getElementById(id);
-        if (el) el.innerHTML = html;
+      // SHA-256 (used for the X-Signature header when crypto.subtle is unavailable).
+      function sha256HexJs(str) {
+        const bytes = new TextEncoder().encode(str);
+        const K = [];
+        let H = [];
+        const frac = (x) => ((x - Math.floor(x)) * 2 ** 32) >>> 0;
+        for (let n = 2, found = 0; found < 64; n++) {
+          let prime = true;
+          for (let d = 2; d * d <= n; d++) if (n % d === 0) prime = false;
+          if (!prime) continue;
+          if (found < 8) H[found] = frac(Math.sqrt(n));
+          K[found++] = frac(Math.cbrt(n));
+        }
+        const len = bytes.length;
+        const nBlocks = ((len + 8) >>> 6) + 1;
+        const words = new Uint32Array(nBlocks * 16);
+        for (let i = 0; i < len; i++) words[i >> 2] |= bytes[i] << (24 - (i % 4) * 8);
+        words[len >> 2] |= 0x80 << (24 - (len % 4) * 8);
+        words[nBlocks * 16 - 2] = Math.floor(len / 0x20000000);
+        words[nBlocks * 16 - 1] = (len * 8) >>> 0;
+        const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+        const W = new Uint32Array(64);
+        for (let blk = 0; blk < nBlocks; blk++) {
+          for (let t = 0; t < 64; t++) {
+            if (t < 16) W[t] = words[blk * 16 + t];
+            else {
+              const s0 = rotr(W[t - 15], 7) ^ rotr(W[t - 15], 18) ^ (W[t - 15] >>> 3);
+              const s1 = rotr(W[t - 2], 17) ^ rotr(W[t - 2], 19) ^ (W[t - 2] >>> 10);
+              W[t] = (W[t - 16] + s0 + W[t - 7] + s1) >>> 0;
+            }
+          }
+          let [a, b, c, d, e, f, g, h] = H;
+          for (let t = 0; t < 64; t++) {
+            const t1 = (h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + K[t] + W[t]) >>> 0;
+            const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+            [h, g, f, e, d, c, b, a] = [g, f, e, (d + t1) >>> 0, c, b, a, (t1 + t2) >>> 0];
+          }
+          H = H.map((v, i) => (v + [a, b, c, d, e, f, g, h][i]) >>> 0);
+        }
+        return H.map((v) => v.toString(16).padStart(8, "0")).join("");
       }
 
-      function safeSetStyle(id, prop, value) {
-        const el = document.getElementById(id);
-        if (el) el.style[prop] = value;
+      // SEMS+ expects the password as base64(md5_hex(password)).
+      function hashPassword(password) {
+        return btoa(md5(password));
       }
 
-      function safeSetClass(id, className) {
-        const el = document.getElementById(id);
-        if (el) el.className = className;
+      function toNumber(value) {
+        if (value === null || value === undefined || value === "" || typeof value === "boolean") return null;
+        const n = Number(value);
+        return Number.isFinite(n) ? n : null;
       }
 
-      function parsePowerValue(str) {
-        if (!str || str === "--" || str === "") return null;
-        if (typeof str === "number") return str;
-        const match = str.toString().match(/^(-?[\d.]+)\s*(kW|W)?$/i);
-        if (match) {
-          let value = parseFloat(match[1]);
-          if (match[2] && match[2].toLowerCase() === "kw") value *= 1000;
-          return value;
+      function round(n, digits = 3) {
+        const f = 10 ** digits;
+        return Math.round(n * f) / f;
+      }
+
+      function sumPoints(entry) {
+        const values = ((entry && entry.statisticsList) || []).map((p) => toNumber(p && p.val)).filter((n) => n !== null);
+        return values.length ? values.reduce((a, b) => a + b, 0) : null;
+      }
+
+      // Statistics response -> { generation, grid_import, ... } in kWh
+      function parseStatistics(data) {
+        if (!data || typeof data !== "object") return {};
+        const totals = {};
+        for (const entry of data.dataList || []) {
+          const total = entry && entry.item in STATISTICS_ITEM_MAP ? sumPoints(entry) : null;
+          if (total !== null) totals[entry.item] = total;
+        }
+        for (const [summaryKey, item] of Object.entries(STATISTICS_SUMMARY_MAP)) {
+          const n = toNumber(data[summaryKey]);
+          if (!(item in totals) && n !== null) totals[item] = n;
+        }
+        const out = {};
+        for (const [item, value] of Object.entries(totals)) out[STATISTICS_ITEM_MAP[item]] = round(value);
+        return out;
+      }
+
+      function parseRates(data) {
+        const out = {};
+        for (const [key, name] of Object.entries(STATISTICS_RATE_MAP)) {
+          const n = toNumber(data && data[key]);
+          if (n !== null) out[name] = round(n, 2);
+        }
+        return out;
+      }
+
+      // Flow response (kW, signed) -> watts: battery + = discharging, grid + = importing.
+      function parseFlow(flow) {
+        if (!flow || typeof flow !== "object") return {};
+        const out = {};
+        const watts = (kw) => round(kw * 1000, 1) + 0; // + 0 turns -0 into 0
+        const solar = toNumber(flow.pSystem) ?? toNumber(flow.pAc);
+        if (solar !== null) out.solar = watts(Math.abs(solar));
+        const load = toNumber(flow.pConsum);
+        if (load !== null) out.load = watts(Math.abs(load));
+        const battery = toNumber(flow.pBat);
+        if (battery !== null) out.battery = watts(battery);
+        const grid = toNumber(flow.pGrid);
+        if (grid !== null) out.grid = watts(-grid);
+        const soc = toNumber(flow.soc);
+        if (soc !== null) out.battery_soc = soc;
+        return out;
+      }
+
+      function parseDevices(data) {
+        const devices = [];
+        for (const group of (data && data.deviceDetailList) || []) {
+          for (const sg of group.statusDetailList || []) {
+            for (const sn of sg.snList || []) {
+              devices.push({ sn, deviceType: group.deviceType, status: sg.status, ...((sg.detailMap || {})[sn] || {}) });
+            }
+          }
+        }
+        return devices;
+      }
+
+      // Station details ("Basic Information" in the portal): baseInfo.batteryCapacity (kWh),
+      // capacity (solar, kWp) and installedPower (inverter, kW). 0 means "not entered".
+      function parseStationDetails(data) {
+        if (!data || typeof data !== "object") return {};
+        const base = data.baseInfo && typeof data.baseInfo === "object" ? data.baseInfo : data;
+        const out = {};
+        for (const [name, key] of [["battery_capacity", "batteryCapacity"], ["solar_capacity", "capacity"], ["rated_power", "installedPower"]]) {
+          const n = toNumber(base[key]);
+          if (n) out[name] = n;
+        }
+        return out;
+      }
+
+      const TELEMETRY_MAP = { Temperature: "temperature", Vac: "grid_voltage", pBackup: "backup_power" };
+
+      // Inverter telemetry: groups of { code, data, unit } factors -> { temperature, grid_voltage, backup_power (W) }
+      // Solar strings appear as "MPPT-1:Ppv" (power) and "MPPT-1:Vpv" (voltage), one pair per string.
+      function parseTelemetry(data) {
+        const out = {};
+        const strings = {};
+        for (const group of Array.isArray(data) ? data : []) {
+          for (const f of (group && group.factors) || []) {
+            if (!f || typeof f.code !== "string") continue;
+            const string = f.code.match(/^MPPT-(\d+):(Ppv|Vpv)$/);
+            if (!(f.code in TELEMETRY_MAP) && !string) continue;
+            let value = toNumber(f.data);
+            if (value === null) continue;
+            if (String(f.unit || "").toLowerCase() === "kw") value *= 1000;
+            value = round(value, 1) + 0;
+            if (string) (strings[Number(string[1])] = strings[Number(string[1])] || {})[string[2] === "Ppv" ? "power" : "voltage"] = value;
+            else out[TELEMETRY_MAP[f.code]] = value;
+          }
+        }
+        if (Object.keys(strings).length) out.strings = strings;
+        return out;
+      }
+
+      function isStorage(d) {
+        return d.deviceType === "ENERGY_STORAGE_INTEGRATED_CABINET" || (d.deviceType === "INVERTER" && (!d.subtype || d.subtype === "store"));
+      }
+
+      function parseAlarms(data) {
+        const alarms = ((data && data.dataList) || []).map((a) => ({
+          name: a.warningNameEn || a.warningname,
+          device: a.deviceName,
+          level: typeof a.alarmLevel === "string" ? a.alarmLevel.split("_").pop().toLowerCase() : null,
+          started: a.happentimes,
+          cleared: a.recoverytimes || null,
+          active: toNumber(a.status) === 0, // 0 = still happening, 1 = recovered
+        }));
+        return alarms.sort((a, b) => String(b.started || "").localeCompare(String(a.started || "")));
+      }
+
+      function installYear(devices, station, currentYear) {
+        const years = [];
+        for (const v of [...devices.map((d) => d.addTime), station && station.createTime]) {
+          const n = toNumber(v);
+          if (n !== null && n > 1e11) years.push(new Date(n).getFullYear());
+          else if (typeof v === "string" && /^\d{4}-/.test(v)) years.push(Number(v.slice(0, 4)));
+        }
+        const valid = years.filter((y) => y >= EARLIEST_STATS_YEAR && y <= currentYear);
+        return valid.length ? Math.min(...valid) : EARLIEST_STATS_YEAR;
+      }
+
+      // SEMS+ returns flat totals, e.g. { profitProStats: 0.71, profitGridStats: 0.50, currency: "AUD" }.
+      // profitProStats = income on all generation; profitGridStats = export-only part.
+      function incomeFrom(production) {
+        if (!production || typeof production !== "object") return null;
+        for (const key of ["profitProStats", "profitGridStats"]) {
+          const n = toNumber(production[key]);
+          if (n !== null) return round(n, 4);
         }
         return null;
       }
 
-      // Reusable function to update energy stats for any time period
-      // prefix examples: "sum-daily", "sum-monthly", "sum-yearly", "sum-alltime"
-      function updateEnergyStats(prefix, modelData) {
-        if (!modelData) return;
-
-        if (modelData.sum !== undefined) {
-          safeSetHTML(
-            `${prefix}-gen`,
-            `${modelData.sum.toLocaleString(undefined, { maximumFractionDigits: 2 })}<span class="unit"> kWh</span>`
-          );
+      // "YYYY-MM-DD" for today in the station's time zone (IANA name or "UTC+10:00").
+      function stationToday(timeZone) {
+        const opts = { year: "numeric", month: "2-digit", day: "2-digit" };
+        const offset = typeof timeZone === "string" && timeZone.trim().match(/^(?:UTC|GMT)\s*([+-])(\d{1,2})(?::?(\d{2}))?$/);
+        if (offset) {
+          const minutes = (offset[1] === "-" ? -1 : 1) * (Number(offset[2]) * 60 + Number(offset[3] || 0));
+          return new Date(Date.now() + minutes * 60000).toISOString().slice(0, 10);
         }
-        if (modelData.buy !== undefined) {
-          safeSetHTML(
-            `${prefix}-buy`,
-            `${modelData.buy.toLocaleString(undefined, { maximumFractionDigits: 2 })}<span class="unit"> kWh</span>`
-          );
-        }
-        if (modelData.sell !== undefined) {
-          safeSetHTML(
-            `${prefix}-sell`,
-            `${modelData.sell.toLocaleString(undefined, { maximumFractionDigits: 2 })}<span class="unit"> kWh</span>`
-          );
-        }
-        if (modelData.selfUseOfPv !== undefined) {
-          safeSetHTML(
-            `${prefix}-selfuse`,
-            `${modelData.selfUseOfPv.toLocaleString(undefined, {
-              maximumFractionDigits: 2,
-            })}<span class="unit"> kWh</span>`
-          );
-        }
-        if (modelData.consumptionOfLoad !== undefined) {
-          safeSetHTML(
-            `${prefix}-consumption`,
-            `${modelData.consumptionOfLoad.toLocaleString(undefined, {
-              maximumFractionDigits: 2,
-            })}<span class="unit"> kWh</span>`
-          );
-        }
-        if (modelData.charge !== undefined) {
-          safeSetHTML(
-            `${prefix}-charge`,
-            `${modelData.charge.toLocaleString(undefined, { maximumFractionDigits: 2 })}<span class="unit"> kWh</span>`
-          );
-        }
-        if (modelData.disCharge !== undefined) {
-          safeSetHTML(
-            `${prefix}-discharge`,
-            `${modelData.disCharge.toLocaleString(undefined, {
-              maximumFractionDigits: 2,
-            })}<span class="unit"> kWh</span>`
-          );
+        try {
+          return new Intl.DateTimeFormat("en-CA", { ...opts, timeZone: timeZone || undefined }).format(new Date());
+        } catch (e) {
+          return new Intl.DateTimeFormat("en-CA", opts).format(new Date());
         }
       }
 
-      // Combine all-time values with today's values for real-time accuracy
-      // (All-time stats from API only update at end of day)
-      function combineWithToday(allTimeData, todayData) {
-        if (!allTimeData) return null;
-        if (!todayData) return allTimeData;
-
-        const combined = {};
-        const fields = ["sum", "buy", "sell", "selfUseOfPv", "consumptionOfLoad", "charge", "disCharge"];
-
-        for (const field of fields) {
-          if (allTimeData[field] !== undefined) {
-            combined[field] = allTimeData[field] + (todayData[field] || 0);
-          }
-        }
-
-        return combined;
+      function addDays(date, n) {
+        const d = new Date(`${date}T00:00:00Z`);
+        d.setUTCDate(d.getUTCDate() + n);
+        return d.toISOString().slice(0, 10);
       }
 
-      function updateSummary(data, source) {
-        if (!data || !data.data) return;
+      const dayRange = (start, end = start) => [`${start} 00:00:00`, `${end} 23:59:59`];
+      const yearRange = (y) => [`${y}-01-01 00:00:00`, `${y}-12-31 23:59:59`];
+      // ==== end pure helpers ====
 
-        const d = data.data;
-        const info = d.info || {};
-        const kpi = d.kpi || {};
-        const soc = d.soc || [];
-        const powerflow = d.powerflow || {};
+      // ==== sensor layout (mirrors custom_components/lges_energy/sensor.py) ====
+      const STATUS = {
+        "-1": ["Error", "bad"],
+        0: ["Offline", "bad"],
+        1: ["Online", "good"],
+        2: ["Error", "bad"],
+        3: ["Waiting", ""],
+        4: ["Offline", "bad"],
+        5: ["Online", "good"],
+      };
+      const ENERGY_ROWS = [
+        ["generation", "Generated"],
+        ["grid_import", "Grid Import"],
+        ["grid_export", "Grid Export"],
+        ["self_use", "Self Use"],
+        ["consumption", "Home Consumption"],
+        ["battery_charge", "Battery Charge"],
+        ["battery_discharge", "Battery Discharge"],
+      ];
+      const ENERGY_COLUMNS = [
+        ["today", "Today"],
+        ["month", "This Month"],
+        ["year", "This Year"],
+        ["all_time", "All Time"],
+      ];
+      const isMissing = (v) => v === null || v === undefined;
+      const signHint = (v, positive, negative) => (isMissing(v) ? "" : v > 0 ? positive : v < 0 ? negative : "idle");
 
-        // Status
-        if (info.status !== undefined) {
-          const status = info.status;
-          if (status === 1) {
-            safeSetText("sum-status", "Online");
-            safeSetClass("sum-status", "value online");
-          } else if (status === 0) {
-            safeSetText("sum-status", "Offline");
-            safeSetClass("sum-status", "value offline");
-          } else {
-            safeSetText("sum-status", `Status ${status}`);
-          }
+      // Each tile: [name, request that loads it, value(state), unit, hint(value, state), class(value, state)]
+      // Sections have 4 tiles so rows line up; battery units are added to the Battery row.
+      const TILE_SECTIONS = [
+        [
+          "Live power",
+          [
+            ["Solar Power", "flow", (s) => s.power.solar, "W"],
+            ["Battery Power", "flow", (s) => s.power.battery, "W", (v) => signHint(v, "discharging", "charging")],
+            ["Home Load Power", "flow", (s) => s.power.load, "W"],
+            ["Grid Power", "flow", (s) => s.power.grid, "W", (v) => signHint(v, "importing", "exporting")],
+          ],
+        ],
+        ["Solar", [["Solar Capacity", "stations", (s) => s.info.capacity, "kW"]]],
+        [
+          "Battery",
+          [
+            ["Battery State of Charge", "flow", (s) => s.power.battery_soc, "%", (v) => (isMissing(v) ? "" : "whole system")],
+            ["Battery Capacity", "details", (s) => s.info.batteryCapacity, "kWh", (v) => (isMissing(v) ? "" : "from station details")],
+          ],
+        ],
+        [
+          "Today's self-consumption",
+          [
+            ["Self-Consumption Today", "today", (s) => s.rates.self_consumption_rate, "%", (v) => (isMissing(v) ? "" : "solar used at home")],
+            ["Self-Sufficiency Today", "today", (s) => s.rates.self_sufficiency, "%", (v) => (isMissing(v) ? "" : "home use met by solar/battery")],
+          ],
+        ],
+        [
+          "Income",
+          [
+            ["Daily Income", "income", (s) => s.income.today, (s) => s.income.currency || "AUD", (v) => (isMissing(v) ? "" : "all solar today")],
+            ["Export Income Today", "income", (s) => s.income.exportToday, (s) => s.income.currency || "AUD", (v) => (isMissing(v) ? "" : "solar sold to the grid")],
+            ["Total Income", "income", (s) => s.income.total, (s) => s.income.currency || "AUD", (v, s) => s.income.totalNote],
+          ],
+        ],
+        [
+          "System",
+          [
+            [
+              "Status",
+              "flow",
+              (s) => statusText(s.info.status),
+              "",
+              (v, s) => (isMissing(v) ? "" : `status code ${s.info.status}`),
+              (v, s) => (STATUS[s.info.status] || [])[1] || "",
+            ],
+            [
+              "Active Alarms",
+              "alarms",
+              (s) => (s.alarms ? s.alarms.filter((a) => a.active).length : null),
+              "",
+              (v, s) => (!s.alarms ? "" : s.alarms[0] ? `last: ${s.alarms[0].name}` : "none in 90 days"),
+              (v) => (v ? "bad" : ""),
+            ],
+            // lastUpdate is "YYYY-MM-DD HH:MM:SS" in the station's time zone: time big, date below.
+            [
+              "Last Update",
+              "flow",
+              (s) => (s.info.lastUpdate ? s.info.lastUpdate.slice(11) : null),
+              "",
+              (v, s) => (isMissing(v) ? "" : `${s.info.lastUpdate.slice(0, 10)} · ${s.info.timezone || "local time"}`),
+            ],
+          ],
+        ],
+        [
+          "Inverter",
+          [
+            ["Inverter Temperature", "readings", (s) => s.inverter.temperature, "°C"],
+            ["Grid Voltage", "readings", (s) => s.inverter.grid_voltage, "V"],
+            ["Backup Power", "readings", (s) => s.inverter.backup_power, "W", (v) => (isMissing(v) ? "" : "backed-up circuits")],
+            ["Inverter Rated Power", "stations", (s) => s.info.ratedPower, "kW", (v, s) => s.info.model || ""],
+          ],
+        ],
+      ];
+      // ==== end sensor layout ====
+
+      let session = null; // { token, gateway, neutral, host }
+      let stations = [];
+      let state = null;
+      let responseCount = 0;
+
+      function newState(station) {
+        return {
+          loaded: { stations: true },
+          devices: null,
+          info: {
+            // The station list gives these too; station details replace them when loaded.
+            capacity: toNumber(station.pvInstallP),
+            ratedPower: toNumber(station.installedPower),
+            batteryCapacity: null,
+            status: toNumber(station.status),
+            timezone: station.timeZone,
+            lastUpdate: null,
+            model: null,
+          },
+          power: {},
+          energy: { today: {}, month: {}, year: {}, all_time: {} },
+          rates: {},
+          income: { currency: null, today: null, exportToday: null, total: null, totalNote: "" },
+          batteries: null,
+          alarms: null,
+          inverter: {},
+        };
+      }
+
+      function statusText(code) {
+        if (isMissing(code)) return null;
+        return (STATUS[code] || ["Unknown"])[0];
+      }
+
+      // ==== request signing ====
+      async function sha256Hex(text) {
+        if (window.crypto && crypto.subtle) {
+          const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+          return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
         }
+        return sha256HexJs(text);
+      }
 
-        if (info.stationname) safeSetText("sum-station-name", info.stationname);
+      async function webHeaders(tok, neutral) {
+        const ms = Date.now();
+        const digest = await sha256Hex(`${ms}@${tok.uid || ""}@${tok.token || ""}`);
+        return {
+          "Content-Type": "application/json",
+          Accept: "application/json, text/plain, */*",
+          token: JSON.stringify(tok),
+          "X-Signature": btoa(`${digest}@${ms}`),
+          neutral: neutral,
+          currentLang: "en",
+        };
+      }
 
-        // Battery SOC
-        if (soc.length > 0 && soc[0].power !== undefined) {
-          const batteryLevel = soc[0].power;
-          safeSetHTML("sum-battery-soc", `${batteryLevel}<span class="unit">%</span>`);
-          safeSetStyle("sum-battery-bar", "width", `${batteryLevel}%`);
+      // ==== API calls ====
+      function selectedStation() {
+        return stations.find((s) => s.id === document.getElementById("stationSelect").value) || null;
+      }
+
+      function requireStation() {
+        const station = selectedStation();
+        if (!station) throw new Error("Choose a system first.");
+        return station;
+      }
+
+      async function semsCall(label, method, path, { body, params } = {}) {
+        if (!session) throw new Error("Please log in first.");
+        const query = params ? "?" + new URLSearchParams(params) : "";
+        const response = await fetch(session.gateway + path + query, {
+          method,
+          headers: await webHeaders(session.token, session.neutral),
+          body: body === undefined ? undefined : JSON.stringify(body),
+        });
+        const data = await response.json();
+        const ok = response.ok && SUCCESS_CODES.includes(data.code);
+        addResponse(label, `${method} ${path}`, data, ok);
+        if (!ok) {
+          if (AUTH_EXPIRED_CODES.includes(String(data.code))) throw new Error(`Session expired (${data.code}). Please log in again.`);
+          throw new Error(`${label}: ${data.description || data.msg || response.statusText} (code ${data.code})`);
         }
+        return data.data;
+      }
 
-        // Power Flow values
-        if (powerflow.pv !== undefined) {
-          const pvWatts = parsePowerValue(powerflow.pv);
-          if (pvWatts !== null) {
-            safeSetHTML("sum-pv-power", `${pvWatts.toFixed(0)}<span class="unit"> W</span>`);
-          }
-        }
+      function statisticsData(label, dimension, [startTime, endTime]) {
+        return semsCall(label, "POST", `${PLANT_API}/stations/statistics`, {
+          body: { stationId: requireStation().id, isReport: false, items: Object.keys(STATISTICS_ITEM_MAP), dimension, startTime, endTime },
+        });
+      }
 
-        // Battery power (note: API typo is "bettery")
-        // Use betteryStatus to determine sign: 2=discharging (positive), 3=charging (negative)
-        const batteryPower = powerflow.bettery || powerflow.battery;
-        if (batteryPower !== undefined) {
-          let battWatts = parsePowerValue(batteryPower);
-          if (battWatts !== null) {
-            const batteryStatus = powerflow.betteryStatus || powerflow.batteryStatus;
-            if (batteryStatus === 3) {
-              battWatts = -Math.abs(battWatts); // Charging = negative
-            } else if (batteryStatus === 2) {
-              battWatts = Math.abs(battWatts); // Discharging = positive
+      function production(label, dimension, [startTime, endTime]) {
+        return semsCall(label, "POST", `${PLANT_API}/stations/production`, {
+          body: {
+            stationId: requireStation().id,
+            items: ["profitProStats", "profitGridStats", "proSystemTotalStats"],
+            dimension,
+            isReport: false,
+            startTime,
+            endTime,
+          },
+        });
+      }
+
+      const today = () => stationToday(requireStation().timeZone);
+
+      async function login() {
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value;
+        if (!email || !password) return showMessage("Enter your email and password.", "error");
+
+        await runStep("loginBtn", async () => {
+          const body = { account: email, pwd: hashPassword(password), agreement: 1, isLocal: false, isChinese: false };
+          let lastError = "No login server responded.";
+          for (const host of LOGIN_HOSTS) {
+            let data;
+            try {
+              const response = await fetch(host.url, { method: "POST", headers: await webHeaders(EMPTY_WEB_TOKEN, host.neutral), body: JSON.stringify(body) });
+              data = await response.json();
+            } catch (error) {
+              lastError = error.message;
+              continue;
             }
-            const prefix = battWatts > 0 ? "+" : "";
-            safeSetHTML("sum-battery-power", `${prefix}${battWatts.toFixed(0)}<span class="unit"> W</span>`);
-          }
-        }
-
-        if (powerflow.load !== undefined) {
-          const loadWatts = parsePowerValue(powerflow.load);
-          if (loadWatts !== null) {
-            safeSetHTML("sum-load-power", `${loadWatts.toFixed(0)}<span class="unit"> W</span>`);
-          }
-        }
-
-        // Grid power - use loadStatus to determine sign: 1=buying (positive), -1=selling (negative)
-        if (powerflow.grid !== undefined) {
-          let gridWatts = parsePowerValue(powerflow.grid);
-          if (gridWatts !== null) {
-            const loadStatus = powerflow.loadStatus;
-            if (loadStatus === -1) {
-              gridWatts = -Math.abs(gridWatts); // Exporting/Selling = negative
-            } else if (loadStatus === 1) {
-              gridWatts = Math.abs(gridWatts); // Importing/Buying = positive
+            const ok = SUCCESS_CODES.includes(data.code) && data.data && data.data.token;
+            // Show the login response without the session token.
+            const shown = JSON.parse(JSON.stringify(data));
+            if (shown.data && shown.data.token) shown.data.token = "(hidden)";
+            addResponse(`Login (${host.label})`, `POST ${host.url}`, shown, ok);
+            if (data.data && data.data.mfaRequired) throw new Error("This account uses two-factor sign-in. Turn it off to use the API.");
+            if (!ok) {
+              lastError = `${host.label}: ${data.description || "login failed"} (code ${data.code})`;
+              continue;
             }
-            const prefix = gridWatts > 0 ? "+" : "";
-            safeSetHTML("sum-grid-power", `${prefix}${gridWatts.toFixed(0)}<span class="unit"> W</span>`);
+            const match = typeof data.data.api === "string" && data.data.api.match(/^(https?:\/\/[^/]+)/);
+            const region = typeof data.data.region === "string" && /^[a-z]{2}$/.test(data.data.region) ? data.data.region : null;
+            const gateway = match ? match[1] : region ? `https://${region}-gateway.semsportal.com` : DEFAULT_GATEWAY;
+            session = { token: data.data, gateway, neutral: host.neutral, host: host.label };
+            document.getElementById("password").value = "";
+            document.getElementById("loginForm").classList.add("hidden");
+            document.getElementById("loggedIn").classList.remove("hidden");
+            const server = session.gateway.replace("https://", "");
+            document.getElementById("sessionInfo").innerHTML =
+              `<div>${escapeHtml(session.host)}</div><div title="${escapeHtml(server)}">Data server: ${escapeHtml(server)}</div>`;
+            await loadStations();
+            return;
+          }
+          throw new Error("Login failed. " + lastError);
+        });
+      }
+
+      function logout() {
+        session = null;
+        stations = [];
+        state = null;
+        document.getElementById("loginForm").classList.remove("hidden");
+        document.getElementById("loggedIn").classList.add("hidden");
+        document.getElementById("stationSelect").innerHTML = "";
+        showMessage("");
+        renderSensors();
+      }
+
+      async function loadStations() {
+        const data = await semsCall("Systems", "POST", `${PLANT_API}/portal/stations/page`, { body: { current: 1, size: 100 } });
+        stations = ((data && data.dataList) || []).filter((s) => s && s.id);
+        const select = document.getElementById("stationSelect");
+        select.innerHTML = stations.length ? "" : '<option value="">No systems on this account</option>';
+        for (const s of stations) {
+          const option = document.createElement("option");
+          option.value = s.id;
+          option.textContent = s.name || s.googleAddress || s.id;
+          select.appendChild(option);
+        }
+        onStationChange();
+      }
+
+      function onStationChange() {
+        const station = selectedStation();
+        state = station ? newState(station) : null;
+        document.querySelectorAll(".station-btn").forEach((b) => (b.disabled = !station));
+        renderSensors();
+      }
+
+      async function loadFlow() {
+        const station = requireStation();
+        const flow = await semsCall("Power flow", "GET", `${PLANT_API}/stations/flow`, { params: { stationId: station.id } });
+        state.power = parseFlow(flow);
+        state.info.status = toNumber(flow && flow.status) ?? toNumber(station.status);
+        state.info.lastUpdate = flow && flow.refreshTime ? String(flow.refreshTime).replace("T", " ") : null;
+        state.loaded.flow = true;
+      }
+
+      async function loadDevices() {
+        const station = requireStation();
+        const devices = parseDevices(await semsCall("Devices", "GET", `${PLANT_API}/stations/device/all-status`, { params: { stationId: station.id } }));
+        state.devices = devices;
+        state.info.model = (devices.find((d) => d.deviceType === "INVERTER" && d.model) || {}).model || null;
+        const batteries = [];
+        for (const d of devices.filter(isStorage)) {
+          const related = await semsCall(`Batteries on ${d.name || d.sn}`, "GET", `${PLANT_API}/equipments/${encodeURIComponent(d.sn)}/relatedDevices`, {
+            params: { sn: d.sn, deviceType: "ENERGY_STORAGE_INTEGRATED_CABINET", pwId: station.id },
+          });
+          for (const unit of Array.isArray(related) ? related : []) {
+            if ((unit.type || unit.deviceType) !== "BAT_SYS") continue;
+            batteries.push({ name: unit.sn || unit.name || "battery", soc: toNumber(unit.soc), status: unit.status, connected: unit.isConnected });
           }
         }
+        state.batteries = batteries;
+        state.loaded.devices = true;
+      }
 
-        // Income
-        const currency = kpi.currency || "AUD";
-        if (kpi.day_income !== undefined) {
-          safeSetHTML("sum-daily-income", `${kpi.day_income.toFixed(2)}<span class="unit"> ${currency}</span>`);
-        }
-        if (kpi.total_income !== undefined) {
-          safeSetHTML("sum-total-income", `${kpi.total_income.toLocaleString()}<span class="unit"> ${currency}</span>`);
-        }
+      async function loadToday() {
+        const data = await statisticsData("Energy today", "day", dayRange(today()));
+        state.energy.today = parseStatistics(data);
+        state.rates = parseRates(data);
+        state.loaded.today = true;
+      }
 
-        // Last Update
-        if (info.local_date) {
-          // Store the plant's local date for use in API calls
-          const parts = info.local_date.split(" ");
-          plantLocalDate = parts[0]; // Extract just the date portion (YYYY-MM-DD)
-          safeSetText("sum-last-update", parts.length >= 2 ? parts[1] : info.local_date);
+      async function loadMonth() {
+        const d = today();
+        state.energy.month = parseStatistics(await statisticsData("Energy this month", "day", dayRange(`${d.slice(0, 8)}01`, d)));
+        state.loaded.month = true;
+      }
+
+      async function loadYear() {
+        const y = today().slice(0, 4);
+        state.energy.year = parseStatistics(await statisticsData(`Energy ${y}`, "year", yearRange(y)));
+        state.loaded.year = true;
+      }
+
+      // Lifetime = each year since install added up (multi-year requests return zeros).
+      async function loadAllTime() {
+        const currentYear = Number(today().slice(0, 4));
+        const firstYear = installYear(state.devices || [], requireStation(), currentYear);
+        const totals = {};
+        for (let y = firstYear; y <= currentYear; y++) {
+          const stats = parseStatistics(await statisticsData(`Energy ${y}`, "year", yearRange(y)));
+          if (y === currentYear) {
+            state.energy.year = stats;
+            state.loaded.year = true;
+          }
+          for (const [k, v] of Object.entries(stats)) totals[k] = round((totals[k] || 0) + v);
+        }
+        state.energy.all_time = totals;
+        state.loaded.all_time = true;
+      }
+
+      async function loadIncome() {
+        const d = today();
+        const todayProduction = await production("Income today", "day", dayRange(d));
+        state.income.currency = (todayProduction && todayProduction.currency) || null;
+        const todayIncome = incomeFrom(todayProduction);
+        state.income.today = todayIncome === null ? null : round(todayIncome, 2);
+        const exportIncome = toNumber(todayProduction && todayProduction.profitGridStats);
+        state.income.exportToday = exportIncome === null ? null : round(exportIncome, 2);
+        state.loaded.income = true;
+
+        // Lifetime income: add up each year since install.
+        const currentYear = Number(d.slice(0, 4));
+        const firstYear = installYear(state.devices || [], requireStation(), currentYear);
+        let total = 0;
+        for (let y = firstYear; y <= currentYear; y++) {
+          const yearIncome = incomeFrom(await production(`Income ${y}`, "year", yearRange(y)));
+          if (yearIncome === null) {
+            state.income.total = null;
+            state.income.totalNote = `no income figure for ${y}`;
+            return;
+          }
+          total += yearIncome;
+        }
+        state.income.total = round(total, 2);
+        state.income.totalNote = `${firstYear}–${currentYear} added up`;
+      }
+
+      async function loadAlarms() {
+        const d = today();
+        const data = await semsCall("Alarms", "POST", ALARM_PATH, {
+          body: {
+            stationId: requireStation().id,
+            startTime: `${addDays(d, -ALARM_LOOKBACK_DAYS)} 00:00:00`,
+            endTime: `${d} 23:59:59`,
+            timeType: 1, // filter on when the alarm started
+            pageIndex: 1,
+            pageSize: 100,
+          },
+        });
+        state.alarms = parseAlarms(data);
+        state.loaded.alarms = true;
+      }
+
+      // Temperature, grid voltage and backup power from the first inverter (same as Home Assistant).
+      async function loadDetails() {
+        const station = requireStation();
+        const details = parseStationDetails(await semsCall("Station details", "GET", `${PLANT_API}/stations/${encodeURIComponent(station.id)}`));
+        state.info.batteryCapacity = details.battery_capacity ?? null;
+        if (details.solar_capacity) state.info.capacity = details.solar_capacity;
+        if (details.rated_power) state.info.ratedPower = details.rated_power;
+        state.loaded.details = true;
+      }
+
+      async function loadInverterReadings() {
+        const station = requireStation();
+        if (!state.devices) await loadDevices();
+        const inverter = state.devices.find((d) => d.deviceType === "INVERTER");
+        if (!inverter) throw new Error("No inverter found on this system.");
+        const data = await semsCall(`Inverter readings (${inverter.name || inverter.sn})`, "GET", `${PLANT_API}/equipments/${encodeURIComponent(inverter.sn)}/telemetry`, {
+          params: { deviceType: "INVERTER", pwId: station.id },
+        });
+        state.inverter = parseTelemetry(data);
+        state.loaded.readings = true;
+      }
+
+      // The same requests Home Assistant makes on each update.
+      const EVERYTHING = [loadFlow, loadDetails, loadDevices, loadInverterReadings, loadToday, loadMonth, loadAllTime, loadIncome, loadAlarms];
+
+      async function fetchEverything() {
+        await runStep("fetchAllBtn", async () => {
+          const failures = [];
+          for (const step of EVERYTHING) {
+            try {
+              await step();
+            } catch (error) {
+              failures.push(error.message);
+              if (/Session expired/.test(error.message)) break;
+            } finally {
+              renderSensors();
+            }
+          }
+          if (failures.length) throw new Error("Some requests failed:\n• " + failures.join("\n• "));
+        });
+      }
+
+      // Run a button action with a busy state, then refresh the sensor view.
+      async function runStep(buttonId, action) {
+        const button = document.getElementById(buttonId);
+        const label = button.textContent;
+        button.disabled = true;
+        button.textContent = "Loading…";
+        showMessage("");
+        try {
+          await action();
+          showMessage("Done.", "ok");
+        } catch (error) {
+          console.error(error);
+          showMessage(error.message, "error");
+        } finally {
+          button.textContent = label;
+          button.disabled = false;
+          renderSensors();
         }
       }
 
-      function showResult(title, data, endpoint) {
-        if (data && !data.hasError) updateSummary(data, endpoint);
+      // ==== rendering ====
+      function escapeHtml(text) {
+        return String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+      }
 
-        const welcomeCard = document.getElementById("welcomeCard");
-        if (welcomeCard) welcomeCard.remove();
+      function showMessage(text, kind = "") {
+        const el = document.getElementById("message");
+        el.textContent = text;
+        el.className = `message ${kind}`;
+      }
 
-        const panel = document.getElementById("resultsPanel");
-        const timestamp = new Date().toLocaleString();
+      function formatNumber(value) {
+        return typeof value === "number" ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : String(value);
+      }
 
-        const card = document.createElement("div");
-        card.className = "result-card";
-        card.innerHTML = `
-                <div class="result-header">
-                    <div>
-                        <h3>📦 ${title}</h3>
-                        <span class="timestamp">${endpoint} • ${timestamp}</span>
-                    </div>
-                    <div class="result-actions">
-                        <button class="btn-secondary" onclick="copyToClipboard(this)">📋 Copy</button>
-                        <button class="btn-secondary" onclick="this.closest('.result-card').remove()">✕</button>
-                    </div>
-                </div>
-                <div class="result-body">
-                    <pre>${syntaxHighlight(JSON.stringify(data, null, 2))}</pre>
-                </div>
-            `;
+      // "—" until its request has run, "not reported" if the API had no value.
+      function valueHtml(loaded, value, unit = "") {
+        if (!loaded) return '<span class="pending" title="Not loaded yet">—</span>';
+        if (isMissing(value)) return '<span class="missing" title="The API didn\'t return this value">not reported</span>';
+        return `${escapeHtml(formatNumber(value))}${unit ? `<span class="unit">${escapeHtml(unit)}</span>` : ""}`;
+      }
 
-        const sectionTitle = panel.querySelector(".section-title");
-        if (sectionTitle && sectionTitle.nextSibling) {
-          panel.insertBefore(card, sectionTitle.nextSibling);
-        } else {
-          panel.appendChild(card);
+      // Text that doesn't fit is cut off with "…"; hovering shows it in full.
+      function tile(name, valueMarkup, hint = "", cls = "", valueTitle = "") {
+        const hintHtml = hint ? `<div class="hint" title="${escapeHtml(hint)}">${escapeHtml(hint)}</div>` : "";
+        return (
+          `<div class="tile"><div class="name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>` +
+          `<div class="value ${cls}" title="${escapeHtml(valueTitle)}">${valueMarkup}</div>${hintHtml}</div>`
+        );
+      }
+
+      function stringTiles(s) {
+        if (!s.loaded.readings) return tile("Solar strings", '<span class="pending">—</span>', "load Inverter readings");
+        const strings = Object.entries(s.inverter.strings || {});
+        if (!strings.length) return tile("Solar strings", '<span class="missing">not reported</span>');
+        return strings
+          .map(([n, v]) => tile(`Solar String ${n}`, valueHtml(true, v.power, "W"), isMissing(v.voltage) ? "" : `${formatNumber(v.voltage)} V`))
+          .join("");
+      }
+
+      function batteryTiles(s) {
+        if (!s.loaded.devices) return tile("Battery units", '<span class="pending">—</span>', "load Devices & batteries");
+        if (!s.batteries.length) return tile("Battery units", '<span class="missing">none reported</span>');
+        return s.batteries
+          .map((b, i) => {
+            const hint = b.connected === false ? "not connected" : b.connected ? "connected" : "";
+            return tile(`Battery ${i + 1} (${String(b.name).slice(-8)})`, valueHtml(true, b.soc, "%"), hint, b.connected === false ? "bad" : "");
+          })
+          .join("");
+      }
+
+      function renderSensors() {
+        const view = document.getElementById("sensorsView");
+        if (!state) {
+          view.innerHTML = `<p class="empty">${session ? "Choose a system to see its sensors." : "Log in to see your system's sensors."}</p>`;
+          return;
         }
+        const s = state;
+        let html = "";
+        for (const [title, items] of TILE_SECTIONS) {
+          html += `<section><h3>${escapeHtml(title)}</h3><div class="tiles">`;
+          for (const [name, source, valueFn, unit = "", hintFn, classFn] of items) {
+            const loaded = !!s.loaded[source];
+            const value = loaded ? valueFn(s) : undefined;
+            const unitText = typeof unit === "function" ? unit(s) : unit;
+            const hint = loaded && hintFn ? hintFn(value, s) : "";
+            const cls = loaded && classFn ? classFn(value, s) : "";
+            const full = loaded && !isMissing(value) ? `${formatNumber(value)} ${unitText}`.trim() : "";
+            html += tile(name, valueHtml(loaded, value, unitText), hint, cls, full);
+          }
+          if (title === "Solar") html += stringTiles(s);
+          if (title === "Battery") html += batteryTiles(s);
+          html += "</div>";
+          html += "</section>";
+        }
+
+        html += '<section><h3>Energy (kWh)</h3><div class="table-wrap"><table><thead><tr><th></th>';
+        for (const [, label] of ENERGY_COLUMNS) html += `<th>${label}</th>`;
+        html += "</tr></thead><tbody>";
+        for (const [field, label] of ENERGY_ROWS) {
+          html += `<tr><td>${label}</td>`;
+          for (const [period] of ENERGY_COLUMNS) html += `<td>${valueHtml(!!s.loaded[period], s.energy[period][field])}</td>`;
+          html += "</tr>";
+        }
+        html += "</tbody></table></div></section>";
+
+        html += "<section><h3>Alarms (last 90 days)</h3>";
+        if (!s.loaded.alarms) html += '<p class="note">Click <b>Alarms</b> to load them.</p>';
+        else if (!s.alarms.length) html += '<p class="note good">No alarms in the last 90 days.</p>';
+        else {
+          html += '<div class="table-wrap"><table><thead><tr><th>Alarm</th><th>Device</th><th>Level</th><th>Started</th><th>Cleared</th></tr></thead><tbody>';
+          for (const a of s.alarms) {
+            const cells = [a.name || "?", a.device || "", a.level || "", a.started || "", a.active ? "still active" : a.cleared || ""];
+            html += `<tr class="${a.active ? "active" : ""}">${cells.map((c) => `<td>${escapeHtml(c)}</td>`).join("")}</tr>`;
+          }
+          html += "</tbody></table></div>";
+        }
+        html += "</section>";
+        view.innerHTML = html;
       }
 
       function syntaxHighlight(json) {
-        return json.replace(
-          /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
-          function (match) {
-            let cls = "json-number";
-            if (/^"/.test(match)) {
-              cls = /:$/.test(match) ? "json-key" : "json-string";
-            } else if (/true|false/.test(match)) {
-              cls = "json-boolean";
-            } else if (/null/.test(match)) {
-              cls = "json-null";
-            }
-            return `<span class="${cls}">${match}</span>`;
+        return escapeHtml(json).replace(
+          /(&quot;(?:\\u[a-fA-F0-9]{4}|\\[^u]|(?!&quot;)[^\\])*?&quot;)(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?/g,
+          (match, str, colon, keyword) => {
+            if (str) return colon ? `<span class="json-key">${str}</span>${colon}` : `<span class="json-string">${str}</span>`;
+            return `<span class="${keyword ? "json-other" : "json-number"}">${match}</span>`;
           }
         );
       }
 
-      function copyToClipboard(btn) {
-        const pre = btn.closest(".result-card").querySelector("pre");
-        navigator.clipboard.writeText(pre.textContent).then(() => {
-          const original = btn.textContent;
-          btn.textContent = "✓ Copied!";
-          setTimeout(() => (btn.textContent = original), 2000);
+      function addResponse(label, endpoint, data, ok) {
+        const list = document.getElementById("responses");
+        if (!responseCount) list.innerHTML = "";
+        responseCount += 1;
+        document.getElementById("rawCount").textContent = responseCount;
+        const text = JSON.stringify(data, null, 2);
+        const details = document.createElement("details");
+        details.innerHTML =
+          `<summary><span>${ok ? "✅" : "❌"}</span><span class="what"><b>${escapeHtml(label)}</b> · ${escapeHtml(endpoint)}</span>` +
+          `<span class="when">${new Date().toLocaleTimeString()}</span><button type="button">Copy</button></summary><pre>${syntaxHighlight(text)}</pre>`;
+        details.querySelector("button").addEventListener("click", (event) => {
+          event.preventDefault();
+          const button = event.currentTarget;
+          navigator.clipboard.writeText(text).then(() => {
+            button.textContent = "Copied";
+            setTimeout(() => (button.textContent = "Copy"), 1500);
+          });
         });
+        list.prepend(details);
       }
 
-      function setLoading(btnId, loading) {
-        const btn = document.getElementById(btnId);
-        if (!btn) return;
-        if (loading) {
-          btn.disabled = true;
-          btn.innerHTML = '<div class="loader"></div> Loading...';
-        } else {
-          btn.disabled = false;
-          const texts = {
-            loginBtn: "Login to LGES",
-            getStationsBtn: "Get Power Stations",
-            getDetailsBtn: "Get Plant Details",
-            getPowerflowBtn: "Get Power Flow",
-            getChartBtn: "Get Today Stats",
-            getMonthlyBtn: "Get This Month Stats",
-            getYearlyBtn: "Get This Year Stats",
-            getAllTimeBtn: "Get All-Time Stats",
-          };
-          btn.innerHTML = `<span>${texts[btnId] || "Submit"}</span>`;
-        }
+      function clearResponses() {
+        responseCount = 0;
+        document.getElementById("rawCount").textContent = "0";
+        document.getElementById("responses").innerHTML = '<p class="empty">No requests yet.</p>';
       }
 
-      async function login() {
-        const email = document.getElementById("email").value;
-        const password = document.getElementById("password").value;
-
-        if (!email || !password) {
-          alert("Please enter email and password");
-          return;
-        }
-
-        setLoading("loginBtn", true);
-
-        try {
-          const response = await fetch(apiBase + "v2/common/crosslogin", {
-            method: "POST",
-            headers: getHeaders(false),
-            body: JSON.stringify({ account: email, pwd: password, agreement_agreement: 0, is_local: false }),
-          });
-
-          const data = await response.json();
-          logRequest("crosslogin", !data.hasError);
-          showResult("Login Response", data, "v2/common/crosslogin");
-
-          if (data.hasError) {
-            alert("Login failed: " + data.msg);
-            setLoading("loginBtn", false);
-            return;
-          }
-
-          tokenData = {
-            uid: data.data.uid,
-            timestamp: data.data.timestamp,
-            token: data.data.token,
-            client: data.data.client || "web",
-            version: data.data.version || "",
-            language: data.data.language || "en",
-          };
-
-          if (data.api && data.api !== apiBase) apiBase = data.api;
-
-          document.getElementById("loginForm").classList.add("hidden");
-          document.getElementById("loggedInStatus").classList.remove("hidden");
-          document.getElementById("tokenPreview").textContent = `UID: ${tokenData.uid}`;
-          document.getElementById("getStationsBtn").disabled = false;
-        } catch (error) {
-          console.error("Login error:", error);
-          alert("Login failed: " + error.message);
-          logRequest("crosslogin", false);
-        }
-
-        setLoading("loginBtn", false);
+      function showTab(name) {
+        document.getElementById("sensorsView").classList.toggle("hidden", name !== "sensors");
+        document.getElementById("rawView").classList.toggle("hidden", name !== "raw");
+        document.getElementById("sensorsTab").setAttribute("aria-selected", String(name === "sensors"));
+        document.getElementById("rawTab").setAttribute("aria-selected", String(name === "raw"));
       }
 
-      function logout() {
-        tokenData = null;
-        stations = [];
-        document.getElementById("loginForm").classList.remove("hidden");
-        document.getElementById("loggedInStatus").classList.add("hidden");
-        document.getElementById("stationSelectWrapper").classList.add("hidden");
-        document.getElementById("getStationsBtn").disabled = true;
-        document.getElementById("getDetailsBtn").disabled = true;
-        document.getElementById("getPowerflowBtn").disabled = true;
-        document.getElementById("getChartBtn").disabled = true;
-        document.getElementById("getMonthlyBtn").disabled = true;
-        document.getElementById("getYearlyBtn").disabled = true;
-        document.getElementById("getAllTimeBtn").disabled = true;
-        document.getElementById("stationSelect").innerHTML = '<option value="">-- Select Station --</option>';
-      }
-
-      async function getStations() {
-        if (!tokenData) {
-          alert("Please login first");
-          return;
-        }
-        setLoading("getStationsBtn", true);
-
-        try {
-          const response = await fetch(apiBase + "PowerStation/GetPowerStationIdByOwner", {
-            method: "POST",
-            headers: getHeaders(true),
-            body: JSON.stringify({}),
-          });
-
-          const data = await response.json();
-          logRequest("GetPowerStationIdByOwner", !data.hasError);
-          showResult("Power Stations", data, "PowerStation/GetPowerStationIdByOwner");
-
-          if (!data.hasError && data.data) {
-            const stationData = data.data;
-            if (typeof stationData === "string") {
-              stations = [{ id: stationData, name: stationData.substring(0, 8) }];
-            } else if (Array.isArray(stationData)) {
-              stations = stationData.map((s) => ({
-                id: typeof s === "string" ? s : s.id || s.powerstation_id,
-                name: typeof s === "string" ? s.substring(0, 8) : s.name || s.stationname || s.id?.substring(0, 8),
-              }));
-            } else {
-              stations = [{ id: stationData, name: "Station" }];
-            }
-
-            const select = document.getElementById("stationSelect");
-            select.innerHTML = '<option value="">-- Select Station --</option>';
-            stations.forEach((s) => {
-              select.innerHTML += `<option value="${s.id}">${s.name} (${s.id})</option>`;
-            });
-
-            document.getElementById("stationSelectWrapper").classList.remove("hidden");
-            document.getElementById("getDetailsBtn").disabled = false;
-            document.getElementById("getPowerflowBtn").disabled = false;
-            document.getElementById("getChartBtn").disabled = false;
-            document.getElementById("getMonthlyBtn").disabled = false;
-            document.getElementById("getYearlyBtn").disabled = false;
-            document.getElementById("getAllTimeBtn").disabled = false;
-          }
-        } catch (error) {
-          console.error("Error:", error);
-          alert("Request failed: " + error.message);
-          logRequest("GetPowerStationIdByOwner", false);
-        }
-
-        setLoading("getStationsBtn", false);
-      }
-
-      async function getPlantDetails() {
-        const stationId = document.getElementById("stationSelect").value;
-        if (!stationId) {
-          alert("Please select a station");
-          return;
-        }
-        setLoading("getDetailsBtn", true);
-
-        try {
-          const response = await fetch(apiBase + "v3/PowerStation/GetPlantDetailByPowerstationId", {
-            method: "POST",
-            headers: getHeaders(true),
-            body: JSON.stringify({
-              PowerStationId: stationId,
-              powerStationId: stationId,
-              powerstation_id: stationId,
-              id: stationId,
-            }),
-          });
-
-          const data = await response.json();
-          logRequest("GetPlantDetailByPowerstationId", !data.hasError);
-          showResult("Plant Details", data, "v3/PowerStation/GetPlantDetailByPowerstationId");
-        } catch (error) {
-          console.error("Error:", error);
-          alert("Request failed: " + error.message);
-          logRequest("GetPlantDetailByPowerstationId", false);
-        }
-
-        setLoading("getDetailsBtn", false);
-      }
-
-      async function getPowerflow() {
-        const stationId = document.getElementById("stationSelect").value;
-        if (!stationId) {
-          alert("Please select a station");
-          return;
-        }
-        setLoading("getPowerflowBtn", true);
-
-        try {
-          const response = await fetch(apiBase + "v2/PowerStation/GetPowerflow", {
-            method: "POST",
-            headers: getHeaders(true),
-            body: JSON.stringify({
-              PowerStationId: stationId,
-              powerStationId: stationId,
-              powerstation_id: stationId,
-              id: stationId,
-            }),
-          });
-
-          const data = await response.json();
-          logRequest("GetPowerflow", !data.hasError);
-          showResult("Power Flow", data, "v2/PowerStation/GetPowerflow");
-        } catch (error) {
-          console.error("Error:", error);
-          alert("Request failed: " + error.message);
-          logRequest("GetPowerflow", false);
-        }
-
-        setLoading("getPowerflowBtn", false);
-      }
-
-      async function getEnergyStats() {
-        const stationId = document.getElementById("stationSelect").value;
-        if (!stationId) {
-          alert("Please select a station");
-          return;
-        }
-        setLoading("getChartBtn", true);
-
-        // Use plant's local date if available, otherwise fall back to browser date
-        const today = plantLocalDate || new Date().toISOString().split("T")[0];
-
-        try {
-          const response = await fetch(apiBase + "v2/Charts/GetChartByPlant", {
-            method: "POST",
-            headers: getHeaders(true),
-            body: JSON.stringify({
-              Id: stationId,
-              Date: today,
-              Range: "2", // Daily
-              ChartIndexId: "7",
-              IsDetailFull: false,
-            }),
-          });
-
-          const data = await response.json();
-          logRequest("GetChartByPlant (Today)", !data.hasError);
-          showResult("Today Energy Stats", data, "v2/Charts/GetChartByPlant?Range=2");
-
-          // Update daily summary using the reusable function
-          if (data && !data.hasError && data.data) {
-            const modelData = data.data.modelData || {};
-            todayModelData = modelData; // Store for combining with all-time values
-            updateEnergyStats("sum-daily", modelData);
-          }
-        } catch (error) {
-          console.error("Error:", error);
-          alert("Request failed: " + error.message);
-          logRequest("GetChartByPlant (Today)", false);
-        }
-
-        setLoading("getChartBtn", false);
-      }
-
-      async function getMonthlyStats() {
-        const stationId = document.getElementById("stationSelect").value;
-        if (!stationId) {
-          alert("Please select a station");
-          return;
-        }
-        setLoading("getMonthlyBtn", true);
-
-        // Use plant's local date if available, otherwise fall back to browser date
-        const today = plantLocalDate || new Date().toISOString().split("T")[0];
-
-        try {
-          const response = await fetch(apiBase + "v2/Charts/GetChartByPlant", {
-            method: "POST",
-            headers: getHeaders(true),
-            body: JSON.stringify({
-              Id: stationId,
-              Date: today,
-              Range: "3", // Month
-              ChartIndexId: "7",
-              IsDetailFull: false,
-            }),
-          });
-
-          const data = await response.json();
-          logRequest("GetChartByPlant (This Month)", !data.hasError);
-          showResult("This Month Energy Stats", data, "v2/Charts/GetChartByPlant?Range=3");
-
-          // Update monthly summary using the reusable function
-          if (data && !data.hasError && data.data) {
-            updateEnergyStats("sum-monthly", data.data.modelData || {});
-          }
-        } catch (error) {
-          console.error("Error:", error);
-          alert("Request failed: " + error.message);
-          logRequest("GetChartByPlant (This Month)", false);
-        }
-
-        setLoading("getMonthlyBtn", false);
-      }
-
-      async function getYearlyStats() {
-        const stationId = document.getElementById("stationSelect").value;
-        if (!stationId) {
-          alert("Please select a station");
-          return;
-        }
-        setLoading("getYearlyBtn", true);
-
-        // Use plant's local date if available, otherwise fall back to browser date
-        const today = plantLocalDate || new Date().toISOString().split("T")[0];
-
-        try {
-          const response = await fetch(apiBase + "v2/Charts/GetChartByPlant", {
-            method: "POST",
-            headers: getHeaders(true),
-            body: JSON.stringify({
-              Id: stationId,
-              Date: today,
-              Range: "4", // Year
-              ChartIndexId: "7",
-              IsDetailFull: false,
-            }),
-          });
-
-          const data = await response.json();
-          logRequest("GetChartByPlant (This Year)", !data.hasError);
-          showResult("This Year Energy Stats", data, "v2/Charts/GetChartByPlant?Range=4");
-
-          // Update yearly summary using the reusable function
-          if (data && !data.hasError && data.data) {
-            updateEnergyStats("sum-yearly", data.data.modelData || {});
-          }
-        } catch (error) {
-          console.error("Error:", error);
-          alert("Request failed: " + error.message);
-          logRequest("GetChartByPlant (This Year)", false);
-        }
-
-        setLoading("getYearlyBtn", false);
-      }
-
-      async function getAllTimeStats() {
-        const stationId = document.getElementById("stationSelect").value;
-        if (!stationId) {
-          alert("Please select a station");
-          return;
-        }
-        setLoading("getAllTimeBtn", true);
-
-        // Use plant's local date if available, otherwise fall back to browser date
-        const today = plantLocalDate || new Date().toISOString().split("T")[0];
-
-        try {
-          const response = await fetch(apiBase + "v2/Charts/GetChartByPlant", {
-            method: "POST",
-            headers: getHeaders(true),
-            body: JSON.stringify({
-              Id: stationId,
-              Date: today,
-              Range: "1", // All time
-              ChartIndexId: "7",
-              IsDetailFull: false,
-            }),
-          });
-
-          const data = await response.json();
-          logRequest("GetChartByPlant (All Time)", !data.hasError);
-          showResult("All-Time Energy Stats", data, "v2/Charts/GetChartByPlant?Range=1");
-
-          // Update all-time summary - combine with today's values for real-time accuracy
-          if (data && !data.hasError && data.data) {
-            const allTimeData = data.data.modelData || {};
-            const combinedData = combineWithToday(allTimeData, todayModelData);
-            updateEnergyStats("sum-alltime", combinedData);
-          }
-        } catch (error) {
-          console.error("Error:", error);
-          alert("Request failed: " + error.message);
-          logRequest("GetChartByPlant (All Time)", false);
-        }
-
-        setLoading("getAllTimeBtn", false);
-      }
-
-      document.getElementById("password").addEventListener("keypress", function (e) {
-        if (e.key === "Enter") login();
+      document.getElementById("password").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") login();
       });
+      renderSensors();
     </script>
   </body>
 </html>

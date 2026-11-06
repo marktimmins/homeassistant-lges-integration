@@ -3,9 +3,16 @@
     "step": {
       "user": {
         "title": "LG Energy Solutions Login",
-        "description": "Enter your LG RESU Home Monitor credentials (lgresuhomemonitor.com)",
+        "description": "Enter the email and password you use for Solarportal+ (au.solarportalplus.com)",
         "data": {
           "username": "Email Address",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Sign in again",
+        "description": "The saved password for {username} no longer works. Enter the password you now use at au.solarportalplus.com.",
+        "data": {
           "password": "Password"
         }
       }
@@ -17,15 +24,8 @@
       "unknown": "An unexpected error occurred"
     },
     "abort": {
-      "already_configured": "This account is already configured"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "LG Energy Solutions Options",
-        "description": "Configure integration options"
-      }
+      "already_configured": "This account is already configured",
+      "reauth_successful": "Password updated. The integration has been reloaded."
     }
   },
   "entity": {
@@ -44,9 +44,6 @@
       },
       "battery_soc": {
         "name": "Battery State of Charge"
-      },
-      "battery_capacity": {
-        "name": "Battery Capacity"
       },
       "daily_generation": {
         "name": "Generated Today"
@@ -68,6 +65,12 @@
       },
       "consumption": {
         "name": "Home Consumption Today"
+      },
+      "self_consumption_rate": {
+        "name": "Self-Consumption Today"
+      },
+      "self_sufficiency": {
+        "name": "Self-Sufficiency Today"
       },
       "generation_this_month": {
         "name": "Generated This Month"
@@ -135,6 +138,9 @@
       "daily_income": {
         "name": "Daily Income"
       },
+      "export_income_today": {
+        "name": "Export Income Today"
+      },
       "total_income": {
         "name": "Total Income"
       },
@@ -148,8 +154,26 @@
           "unknown": "Unknown"
         }
       },
+      "active_alarms": {
+        "name": "Active Alarms"
+      },
+      "battery_capacity": {
+        "name": "Battery Capacity"
+      },
       "solar_capacity": {
         "name": "Solar Capacity"
+      },
+      "rated_power": {
+        "name": "Inverter Rated Power"
+      },
+      "inverter_temperature": {
+        "name": "Inverter Temperature"
+      },
+      "grid_voltage": {
+        "name": "Grid Voltage"
+      },
+      "backup_power": {
+        "name": "Backup Power"
       },
       "last_update": {
         "name": "Last Update"

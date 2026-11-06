@@ -1,8 +1,8 @@
 """Sensor platform for LG Energy Solutions."""
 from __future__ import annotations
 
-import logging
-from datetime import datetime
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -14,8 +14,10 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
+    UnitOfElectricPotential,
     UnitOfEnergy,
     UnitOfPower,
+    UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
@@ -25,7 +27,298 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
 from .coordinator import LGESDataUpdateCoordinator
 
-_LOGGER = logging.getLogger(__name__)
+# SEMS+ status codes (as used by the Solarportal+ web portal).
+STATUS_MAP = {
+    -1: "error",
+    0: "offline",
+    1: "online",
+    2: "error",  # fault
+    3: "waiting",  # standby, e.g. no sun at night
+    4: "offline",  # shut down
+    5: "online",  # running
+}
+STATUS_ICONS = {
+    "online": "mdi:check-circle",
+    "waiting": "mdi:sleep",
+    "offline": "mdi:power-off",
+    "error": "mdi:alert-circle",
+}
+
+
+@dataclass(frozen=True, kw_only=True)
+class LGESSensorEntityDescription(SensorEntityDescription):
+    """Describes an LG Energy Solutions sensor.
+
+    The key is also the translation key and the unique ID suffix, so it must
+    never change for an existing sensor.
+    """
+
+    value_fn: Callable[[dict[str, Any]], Any]
+    icon_fn: Callable[[Any], str] | None = None
+    attributes_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = None
+    # For sensors whose unit comes from the data (currency).
+    unit_fn: Callable[[dict[str, Any]], str | None] | None = None
+
+
+def _get(*path: str) -> Callable[[dict[str, Any]], Any]:
+    """Return a function that reads a nested value from station data."""
+
+    def read(data: Any) -> Any:
+        for key in path:
+            if not isinstance(data, dict):
+                return None
+            data = data.get(key)
+        return data
+
+    return read
+
+
+def _signed_icon(positive: str, negative: str, zero: str) -> Callable[[Any], str]:
+    """Icon that follows the sign of the value."""
+
+    def icon(value: Any) -> str:
+        if value is None:
+            return zero
+        return positive if value > 0 else negative if value < 0 else zero
+
+    return icon
+
+
+def _battery_level_icon(value: Any) -> str:
+    """Battery icon in 10% steps."""
+    if value is None:
+        return "mdi:battery-unknown"
+    if value >= 95:
+        return "mdi:battery"
+    if value < 5:
+        return "mdi:battery-outline"
+    return f"mdi:battery-{int((value + 5) // 10) * 10}"
+
+
+def _status(data: dict[str, Any]) -> str:
+    return STATUS_MAP.get(_get("info", "status")(data), "unknown")
+
+
+def _active_alarms(data: dict[str, Any]) -> int | None:
+    alarms = data.get("alarms")
+    if alarms is None:
+        return None
+    return sum(1 for alarm in alarms if alarm.get("active"))
+
+
+def _alarm_attributes(data: dict[str, Any]) -> dict[str, Any]:
+    alarms = data.get("alarms") or []
+    attributes: dict[str, Any] = {
+        "active_alarms": [
+            {key: alarm.get(key) for key in ("name", "device", "level", "started")}
+            for alarm in alarms
+            if alarm.get("active")
+        ]
+    }
+    if alarms:
+        latest = alarms[0]
+        attributes["last_alarm"] = latest.get("name")
+        attributes["last_alarm_started"] = latest.get("started")
+        attributes["last_alarm_cleared"] = latest.get("cleared")
+    return attributes
+
+
+def _currency(data: dict[str, Any]) -> str:
+    return _get("income", "currency")(data) or "AUD"
+
+
+# Energy sensors: field in data["energy"][period] -> (today's key, icon).
+# Other periods use f"{field}_{suffix}", e.g. "grid_import_this_month".
+ENERGY_FIELDS = {
+    "generation": ("daily_generation", "mdi:solar-power-variant"),
+    "grid_import": ("grid_import", "mdi:transmission-tower-import"),
+    "grid_export": ("grid_export", "mdi:transmission-tower-export"),
+    "self_use": ("self_use", "mdi:home-lightning-bolt"),
+    "battery_charge": ("battery_charge", "mdi:battery-charging"),
+    "battery_discharge": ("battery_discharge", "mdi:battery-arrow-down"),
+    "consumption": ("consumption", "mdi:home-lightning-bolt"),
+}
+ENERGY_PERIODS = {"month": "this_month", "year": "this_year", "all_time": "all_time"}
+
+
+def _energy(key: str, period: str, field: str, icon: str) -> LGESSensorEntityDescription:
+    return LGESSensorEntityDescription(
+        key=key,
+        translation_key=key,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon=icon,
+        value_fn=_get("energy", period, field),
+    )
+
+
+def _percent(key: str, icon: str) -> LGESSensorEntityDescription:
+    return LGESSensorEntityDescription(
+        key=key,
+        translation_key=key,
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon=icon,
+        value_fn=_get("rates", key),
+    )
+
+
+def _power(key: str, field: str, **kwargs: Any) -> LGESSensorEntityDescription:
+    return LGESSensorEntityDescription(
+        key=key,
+        translation_key=key,
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=_get("power", field),
+        **kwargs,
+    )
+
+
+SENSORS: tuple[LGESSensorEntityDescription, ...] = (
+    # Live power
+    _power("solar_power", "solar", icon="mdi:solar-power"),
+    _power(
+        "battery_power",
+        "battery",
+        # + discharging, - charging
+        icon_fn=_signed_icon(
+            "mdi:battery-arrow-down", "mdi:battery-arrow-up", "mdi:battery"
+        ),
+    ),
+    _power("load_power", "load", icon="mdi:home-lightning-bolt"),
+    _power(
+        "grid_power",
+        "grid",
+        # + importing, - exporting
+        icon_fn=_signed_icon(
+            "mdi:transmission-tower-import",
+            "mdi:transmission-tower-export",
+            "mdi:transmission-tower",
+        ),
+    ),
+    LGESSensorEntityDescription(
+        key="battery_soc",
+        translation_key="battery_soc",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.BATTERY,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon_fn=_battery_level_icon,
+        value_fn=_get("power", "battery_soc"),
+    ),
+    # Energy today, this month, this year and all time
+    *(
+        _energy(today_key, "today", field, icon)
+        for field, (today_key, icon) in ENERGY_FIELDS.items()
+    ),
+    *(
+        _energy(f"{field}_{suffix}", period, field, icon)
+        for period, suffix in ENERGY_PERIODS.items()
+        for field, (_, icon) in ENERGY_FIELDS.items()
+    ),
+    _percent("self_consumption_rate", "mdi:home-percent"),
+    _percent("self_sufficiency", "mdi:leaf"),
+    # Income
+    LGESSensorEntityDescription(
+        key="daily_income",
+        translation_key="daily_income",
+        state_class=SensorStateClass.TOTAL,
+        icon="mdi:cash",
+        value_fn=_get("income", "today"),
+        unit_fn=_currency,
+    ),
+    LGESSensorEntityDescription(
+        key="export_income_today",
+        translation_key="export_income_today",
+        state_class=SensorStateClass.TOTAL,
+        icon="mdi:cash-plus",
+        value_fn=_get("income", "export_today"),
+        unit_fn=_currency,
+    ),
+    LGESSensorEntityDescription(
+        key="total_income",
+        translation_key="total_income",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:cash-multiple",
+        value_fn=_get("income", "total"),
+        unit_fn=_currency,
+    ),
+    # System
+    LGESSensorEntityDescription(
+        key="status",
+        translation_key="status",
+        device_class=SensorDeviceClass.ENUM,
+        options=["online", "offline", "error", "waiting", "unknown"],
+        icon_fn=lambda value: STATUS_ICONS.get(value, "mdi:help-circle"),
+        value_fn=_status,
+    ),
+    LGESSensorEntityDescription(
+        key="active_alarms",
+        translation_key="active_alarms",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon_fn=lambda value: "mdi:alert" if value else "mdi:check-circle-outline",
+        value_fn=_active_alarms,
+        attributes_fn=_alarm_attributes,
+    ),
+    LGESSensorEntityDescription(
+        key="solar_capacity",
+        translation_key="solar_capacity",
+        native_unit_of_measurement=UnitOfPower.KILO_WATT,
+        device_class=SensorDeviceClass.POWER,
+        icon="mdi:solar-panel-large",
+        value_fn=_get("info", "capacity"),
+    ),
+    LGESSensorEntityDescription(
+        key="battery_capacity",
+        translation_key="battery_capacity",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY_STORAGE,
+        icon="mdi:battery-high",
+        value_fn=_get("info", "battery_capacity"),
+    ),
+    LGESSensorEntityDescription(
+        key="rated_power",
+        translation_key="rated_power",
+        native_unit_of_measurement=UnitOfPower.KILO_WATT,
+        device_class=SensorDeviceClass.POWER,
+        icon="mdi:flash",
+        value_fn=_get("info", "rated_power"),
+    ),
+    # Inverter readings
+    LGESSensorEntityDescription(
+        key="inverter_temperature",
+        translation_key="inverter_temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=_get("inverter", "temperature"),
+    ),
+    LGESSensorEntityDescription(
+        key="grid_voltage",
+        translation_key="grid_voltage",
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=_get("inverter", "grid_voltage"),
+    ),
+    LGESSensorEntityDescription(
+        key="backup_power",
+        translation_key="backup_power",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:power-plug-battery",
+        value_fn=_get("inverter", "backup_power"),
+    ),
+    LGESSensorEntityDescription(
+        key="last_update",
+        translation_key="last_update",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:clock-outline",
+        value_fn=_get("info", "last_update"),
+    ),
+)
 
 
 async def async_setup_entry(
@@ -35,101 +328,38 @@ async def async_setup_entry(
 ) -> None:
     """Set up LG Energy Solutions sensors based on a config entry."""
     coordinator: LGESDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
-    
-    entities: list[LGESSensor] = []
-    
-    for station_id, station_data in coordinator.data.items():
-        # Get station info for device registration
-        details = station_data.get("details", {})
-        info = details.get("info", {})
-        
-        # Use address for device name (more useful for home users), fallback to station name
-        station_name = (
-            info.get("address") 
-            or info.get("stationname") 
-            or f"LGES Station {station_id[:8]}"
-        )
-        
-        # Create device info
+
+    entities: list[SensorEntity] = []
+    for station_id, station in coordinator.data.items():
+        info = station.get("info", {})
         device_info = DeviceInfo(
             identifiers={(DOMAIN, station_id)},
-            name=station_name,
+            # The address is the most recognisable name for a home system.
+            name=info.get("address") or info.get("name") or f"LGES Station {station_id[:8]}",
             manufacturer="LG Energy Solutions",
-            model=info.get("powerstation_type", "Solar Inverter System"),
+            model=info.get("model") or "Solar Inverter System",
             entry_type=DeviceEntryType.SERVICE,
         )
-        
-        # Add all sensors for this station
-        entities.extend([
-            # Real-time power flow sensors (from powerflow object)
-            LGESSolarPowerSensor(coordinator, station_id, device_info),
-            LGESBatteryPowerSensor(coordinator, station_id, device_info),
-            LGESLoadPowerSensor(coordinator, station_id, device_info),
-            LGESGridPowerSensor(coordinator, station_id, device_info),
-            
-            # Battery sensors
-            LGESBatterySOCSensor(coordinator, station_id, device_info),
-            LGESBatteryCapacitySensor(coordinator, station_id, device_info),
-            
-            # Energy stats from GetChartByPlant (daily totals) - Range=2
-            LGESDailyGenerationSensor(coordinator, station_id, device_info),
-            LGESGridImportSensor(coordinator, station_id, device_info),
-            LGESGridExportSensor(coordinator, station_id, device_info),
-            LGESSelfUseSensor(coordinator, station_id, device_info),
-            LGESBatteryChargeSensor(coordinator, station_id, device_info),
-            LGESBatteryDischargeSensor(coordinator, station_id, device_info),
-            LGESConsumptionSensor(coordinator, station_id, device_info),
-            
-            # Monthly energy stats from GetChartByPlant - Range=3
-            LGESMonthlyGenerationSensor(coordinator, station_id, device_info),
-            LGESMonthlyGridImportSensor(coordinator, station_id, device_info),
-            LGESMonthlyGridExportSensor(coordinator, station_id, device_info),
-            LGESMonthlySelfUseSensor(coordinator, station_id, device_info),
-            LGESMonthlyBatteryChargeSensor(coordinator, station_id, device_info),
-            LGESMonthlyBatteryDischargeSensor(coordinator, station_id, device_info),
-            LGESMonthlyConsumptionSensor(coordinator, station_id, device_info),
-            
-            # Yearly energy stats from GetChartByPlant - Range=4
-            LGESYearlyGenerationSensor(coordinator, station_id, device_info),
-            LGESYearlyGridImportSensor(coordinator, station_id, device_info),
-            LGESYearlyGridExportSensor(coordinator, station_id, device_info),
-            LGESYearlySelfUseSensor(coordinator, station_id, device_info),
-            LGESYearlyBatteryChargeSensor(coordinator, station_id, device_info),
-            LGESYearlyBatteryDischargeSensor(coordinator, station_id, device_info),
-            LGESYearlyConsumptionSensor(coordinator, station_id, device_info),
-            
-            # All-time energy stats from GetChartByPlant - Range=1
-            LGESAllTimeGenerationSensor(coordinator, station_id, device_info),
-            LGESAllTimeGridImportSensor(coordinator, station_id, device_info),
-            LGESAllTimeGridExportSensor(coordinator, station_id, device_info),
-            LGESAllTimeSelfUseSensor(coordinator, station_id, device_info),
-            LGESAllTimeBatteryChargeSensor(coordinator, station_id, device_info),
-            LGESAllTimeBatteryDischargeSensor(coordinator, station_id, device_info),
-            LGESAllTimeConsumptionSensor(coordinator, station_id, device_info),
-            
-            # Income sensors
-            LGESDailyIncomeSensor(coordinator, station_id, device_info),
-            LGESTotalIncomeSensor(coordinator, station_id, device_info),
-            
-            # System info sensors
-            LGESStatusSensor(coordinator, station_id, device_info),
-            LGESSolarCapacitySensor(coordinator, station_id, device_info),
-            LGESLastUpdateSensor(coordinator, station_id, device_info),
-        ])
-        
-        # Add battery-specific sensors for each battery in soc array
-        soc_list = details.get("soc", [])
-        for idx, battery in enumerate(soc_list):
-            battery_sn = battery.get("sn", f"Battery {idx + 1}")
-            entities.append(
-                LGESBatteryUnitSensor(coordinator, station_id, device_info, idx, battery_sn)
-            )
-    
+        entities.extend(
+            LGESSensor(coordinator, station_id, device_info, description)
+            for description in SENSORS
+        )
+        entities.extend(
+            LGESBatteryUnitSensor(coordinator, station_id, device_info, index, battery)
+            for index, battery in enumerate(station.get("batteries", []))
+        )
+        # One power and one voltage sensor per solar string the inverter reports.
+        entities.extend(
+            LGESSolarStringSensor(coordinator, station_id, device_info, number, measure)
+            for number in station.get("inverter", {}).get("strings", {})
+            for measure in ("power", "voltage")
+        )
+
     async_add_entities(entities)
 
 
-class LGESSensor(CoordinatorEntity[LGESDataUpdateCoordinator], SensorEntity):
-    """Base class for LG Energy Solutions sensors."""
+class LGESEntity(CoordinatorEntity[LGESDataUpdateCoordinator], SensorEntity):
+    """Base class for a sensor that belongs to one station."""
 
     _attr_has_entity_name = True
 
@@ -145,1153 +375,132 @@ class LGESSensor(CoordinatorEntity[LGESDataUpdateCoordinator], SensorEntity):
         self._attr_device_info = device_info
 
     @property
-    def station_data(self) -> dict[str, Any]:
-        """Get the current station data."""
-        return self.coordinator.data.get(self._station_id, {})
+    def station(self) -> dict[str, Any]:
+        """Return this station's latest data."""
+        return (self.coordinator.data or {}).get(self._station_id, {})
 
     @property
-    def details(self) -> dict[str, Any]:
-        """Get the details data."""
-        return self.station_data.get("details", {})
-
-    @property
-    def powerflow(self) -> dict[str, Any]:
-        """Get the powerflow data."""
-        return self.station_data.get("powerflow", {})
-
-    @property
-    def info(self) -> dict[str, Any]:
-        """Get the info section from details."""
-        return self.details.get("info", {})
-
-    @property
-    def kpi(self) -> dict[str, Any]:
-        """Get the KPI section from details."""
-        return self.details.get("kpi", {})
-
-    @property
-    def soc_list(self) -> list[dict[str, Any]]:
-        """Get the SOC (battery) list from details."""
-        return self.details.get("soc", [])
-
-    @property
-    def powerflow_data(self) -> dict[str, Any]:
-        """Get the powerflow sub-object from powerflow or details."""
-        # Try powerflow response first
-        pf = self.powerflow.get("powerflow", {})
-        if pf:
-            return pf
-        # Also check details response
-        return self.details.get("powerflow", {})
-
-    @property
-    def energy_stats(self) -> dict[str, Any]:
-        """Get the daily energy stats from GetChartByPlant with Range=2."""
-        return self.station_data.get("energy_stats", {})
-
-    @property
-    def model_data(self) -> dict[str, Any]:
-        """Get the modelData from daily energy stats (contains buy/sell/charge etc)."""
-        return self.energy_stats.get("modelData", {})
-
-    @property
-    def monthly_energy_stats(self) -> dict[str, Any]:
-        """Get the monthly energy stats from GetChartByPlant with Range=3."""
-        return self.station_data.get("monthly_energy_stats", {})
-
-    @property
-    def monthly_model_data(self) -> dict[str, Any]:
-        """Get the modelData from monthly energy stats (contains this month's buy/sell/charge etc)."""
-        return self.monthly_energy_stats.get("modelData", {})
-
-    @property
-    def yearly_energy_stats(self) -> dict[str, Any]:
-        """Get the yearly energy stats from GetChartByPlant with Range=4."""
-        return self.station_data.get("yearly_energy_stats", {})
-
-    @property
-    def yearly_model_data(self) -> dict[str, Any]:
-        """Get the modelData from yearly energy stats (contains this year's buy/sell/charge etc)."""
-        return self.yearly_energy_stats.get("modelData", {})
-
-    @property
-    def all_time_energy_stats(self) -> dict[str, Any]:
-        """Get the all-time energy stats from GetChartByPlant with Range=1."""
-        return self.station_data.get("all_time_energy_stats", {})
-
-    @property
-    def all_time_model_data(self) -> dict[str, Any]:
-        """Get the modelData from all-time energy stats (contains lifetime buy/sell/charge etc)."""
-        return self.all_time_energy_stats.get("modelData", {})
-
-    def parse_power_value(self, value: Any) -> float | None:
-        """Parse power value from string like '582.0W' or '-1252.0W'."""
-        if value is None:
-            return None
-        
-        if isinstance(value, (int, float)):
-            return float(value)
-        
-        if isinstance(value, str):
-            import re
-            match = re.match(r'^(-?[\d.]+)\s*(kW|W)?$', value, re.IGNORECASE)
-            if match:
-                num = float(match.group(1))
-                unit = match.group(2)
-                if unit and unit.lower() == 'kw':
-                    num *= 1000
-                return num
-        
-        return None
+    def available(self) -> bool:
+        """Return False if the last update had no data for this station."""
+        return super().available and self._station_id in (self.coordinator.data or {})
 
 
-class LGESSolarPowerSensor(LGESSensor):
-    """Sensor for real-time solar PV power."""
+class LGESSensor(LGESEntity):
+    """A station sensor defined by an LGESSensorEntityDescription."""
 
-    _attr_translation_key = "solar_power"
-    _attr_native_unit_of_measurement = UnitOfPower.WATT
-    _attr_device_class = SensorDeviceClass.POWER
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_icon = "mdi:solar-power"
+    entity_description: LGESSensorEntityDescription
 
-    def __init__(self, coordinator, station_id, device_info):
+    def __init__(
+        self,
+        coordinator: LGESDataUpdateCoordinator,
+        station_id: str,
+        device_info: DeviceInfo,
+        description: LGESSensorEntityDescription,
+    ) -> None:
+        """Initialize the sensor."""
         super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_solar_power"
+        self.entity_description = description
+        self._attr_unique_id = f"{station_id}_{description.key}"
 
     @property
-    def native_value(self) -> float | None:
-        """Return the solar PV power."""
-        pv = self.powerflow_data.get("pv")
-        return self.parse_power_value(pv)
-
-
-class LGESBatteryPowerSensor(LGESSensor):
-    """Sensor for real-time battery power (charging/discharging)."""
-
-    _attr_translation_key = "battery_power"
-    _attr_native_unit_of_measurement = UnitOfPower.WATT
-    _attr_device_class = SensorDeviceClass.POWER
-    _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_battery_power"
+    def native_value(self) -> Any:
+        """Return the sensor value."""
+        return self.entity_description.value_fn(self.station)
 
     @property
-    def native_value(self) -> float | None:
-        """Return the battery power (positive = discharging, negative = charging).
-        
-        The API returns absolute power values, so we use betteryStatus to determine sign:
-        - betteryStatus = 2: Discharging (positive, power flowing from battery)
-        - betteryStatus = 3: Charging (negative, power flowing into battery)
-        """
-        # Note: API has a typo - field is "bettery" not "battery"
-        battery = self.powerflow_data.get("bettery") or self.powerflow_data.get("battery")
-        power = self.parse_power_value(battery)
-        
-        if power is None:
-            return None
-        
-        # Use betteryStatus to determine the sign
-        # betteryStatus = 2 means discharging (positive)
-        # betteryStatus = 3 means charging (negative)
-        battery_status = self.powerflow_data.get("betteryStatus") or self.powerflow_data.get("batteryStatus")
-        
-        if battery_status == 3:  # Charging
-            return -abs(power)
-        elif battery_status == 2:  # Discharging
-            return abs(power)
-        else:
-            # Unknown status, return absolute value (fallback)
-            return abs(power)
-
-    @property
-    def icon(self) -> str:
-        """Return icon based on charging state."""
-        value = self.native_value
-        if value is None:
-            return "mdi:battery-unknown"
-        if value > 0:
-            return "mdi:battery-arrow-down"  # Discharging
-        if value < 0:
-            return "mdi:battery-arrow-up"  # Charging
-        return "mdi:battery"
-
-
-class LGESLoadPowerSensor(LGESSensor):
-    """Sensor for real-time home load power."""
-
-    _attr_translation_key = "load_power"
-    _attr_native_unit_of_measurement = UnitOfPower.WATT
-    _attr_device_class = SensorDeviceClass.POWER
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_icon = "mdi:home-lightning-bolt"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_load_power"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return the home load power."""
-        load = self.powerflow_data.get("load")
-        return self.parse_power_value(load)
-
-
-class LGESGridPowerSensor(LGESSensor):
-    """Sensor for real-time grid power (import/export)."""
-
-    _attr_translation_key = "grid_power"
-    _attr_native_unit_of_measurement = UnitOfPower.WATT
-    _attr_device_class = SensorDeviceClass.POWER
-    _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_grid_power"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return the grid power (positive = importing, negative = exporting).
-        
-        The API returns absolute power values, so we use loadStatus to determine sign:
-        - loadStatus = 1: Buying from grid (positive, power flowing into home)
-        - loadStatus = -1: Selling to grid (negative, power flowing to grid)
-        """
-        grid = self.powerflow_data.get("grid")
-        power = self.parse_power_value(grid)
-        
-        if power is None:
-            return None
-        
-        # Use loadStatus to determine the sign
-        # loadStatus = 1 means buying from grid (positive/importing)
-        # loadStatus = -1 means selling to grid (negative/exporting)
-        load_status = self.powerflow_data.get("loadStatus")
-        
-        if load_status == -1:  # Selling/Exporting
-            return -abs(power)
-        elif load_status == 1:  # Buying/Importing
-            return abs(power)
-        else:
-            # Unknown status, return absolute value (fallback)
-            return abs(power)
-
-    @property
-    def icon(self) -> str:
-        """Return icon based on grid flow direction."""
-        value = self.native_value
-        if value is None:
-            return "mdi:transmission-tower"
-        if value > 0:
-            return "mdi:transmission-tower-import"  # Importing from grid
-        if value < 0:
-            return "mdi:transmission-tower-export"  # Exporting to grid
-        return "mdi:transmission-tower"
-
-
-class LGESDailyGenerationSensor(LGESSensor):
-    """Sensor for today's solar generation (from modelData.sum in chart data)."""
-
-    _attr_translation_key = "daily_generation"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:solar-power-variant"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_daily_generation"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return today's generation in kWh (from modelData.sum)."""
-        generation = self.model_data.get("sum")
-        if generation is not None:
-            return float(generation)
-        return None
-
-
-class LGESGridImportSensor(LGESSensor):
-    """Sensor for daily grid import (energy bought from grid)."""
-
-    _attr_translation_key = "grid_import"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:transmission-tower-import"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_grid_import"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return today's grid import in kWh."""
-        buy = self.model_data.get("buy")
-        if buy is not None:
-            return float(buy)
-        return None
-
-
-class LGESGridExportSensor(LGESSensor):
-    """Sensor for daily grid export (energy sold to grid)."""
-
-    _attr_translation_key = "grid_export"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:transmission-tower-export"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_grid_export"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return today's grid export in kWh."""
-        sell = self.model_data.get("sell")
-        if sell is not None:
-            return float(sell)
-        return None
-
-
-class LGESSelfUseSensor(LGESSensor):
-    """Sensor for daily self-consumed solar energy."""
-
-    _attr_translation_key = "self_use"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:home-lightning-bolt"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_self_use"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return today's self-consumed solar in kWh."""
-        self_use = self.model_data.get("selfUseOfPv")
-        if self_use is not None:
-            return float(self_use)
-        return None
-
-
-class LGESBatteryChargeSensor(LGESSensor):
-    """Sensor for daily battery charge energy."""
-
-    _attr_translation_key = "battery_charge"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:battery-charging"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_battery_charge"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return today's battery charge in kWh."""
-        charge = self.model_data.get("charge")
-        if charge is not None:
-            return float(charge)
-        return None
-
-
-class LGESBatteryDischargeSensor(LGESSensor):
-    """Sensor for daily battery discharge energy."""
-
-    _attr_translation_key = "battery_discharge"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:battery-arrow-down"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_battery_discharge"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return today's battery discharge in kWh."""
-        discharge = self.model_data.get("disCharge")
-        if discharge is not None:
-            return float(discharge)
-        return None
-
-
-class LGESConsumptionSensor(LGESSensor):
-    """Sensor for daily home consumption."""
-
-    _attr_translation_key = "consumption"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:home-lightning-bolt"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_consumption"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return today's home consumption in kWh."""
-        consumption = self.model_data.get("consumptionOfLoad")
-        if consumption is not None:
-            return float(consumption)
-        return None
-
-
-class LGESBatterySOCSensor(LGESSensor):
-    """Sensor for battery state of charge."""
-
-    _attr_translation_key = "battery_soc"
-    _attr_native_unit_of_measurement = PERCENTAGE
-    _attr_device_class = SensorDeviceClass.BATTERY
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_icon = "mdi:battery"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_battery_soc"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return the battery SOC."""
-        soc_list = self.soc_list
-        if soc_list:
-            # Get the first battery's SOC (power field contains percentage)
-            power = soc_list[0].get("power")
-            if power is not None:
-                return float(power)
-        return None
-
-    @property
-    def icon(self) -> str:
-        """Return dynamic battery icon based on level."""
-        value = self.native_value
-        if value is None:
-            return "mdi:battery-unknown"
-        if value >= 95:
-            return "mdi:battery"
-        if value >= 85:
-            return "mdi:battery-90"
-        if value >= 75:
-            return "mdi:battery-80"
-        if value >= 65:
-            return "mdi:battery-70"
-        if value >= 55:
-            return "mdi:battery-60"
-        if value >= 45:
-            return "mdi:battery-50"
-        if value >= 35:
-            return "mdi:battery-40"
-        if value >= 25:
-            return "mdi:battery-30"
-        if value >= 15:
-            return "mdi:battery-20"
-        if value >= 5:
-            return "mdi:battery-10"
-        return "mdi:battery-outline"
-
-
-class LGESBatteryCapacitySensor(LGESSensor):
-    """Sensor for battery capacity."""
-
-    _attr_translation_key = "battery_capacity"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY_STORAGE
-    _attr_icon = "mdi:battery-high"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_battery_capacity"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return the battery capacity."""
-        capacity = self.info.get("battery_capacity")
-        if capacity is not None:
-            return float(capacity)
-        return None
-
-
-
-class LGESDailyIncomeSensor(LGESSensor):
-    """Sensor for daily income."""
-
-    _attr_translation_key = "daily_income"
-    _attr_state_class = SensorStateClass.TOTAL
-    _attr_icon = "mdi:cash"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_daily_income"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return daily income."""
-        value = self.kpi.get("day_income")
-        if value is not None:
-            return float(value)
-        return None
+    def icon(self) -> str | None:
+        """Return the icon, which may depend on the value."""
+        if self.entity_description.icon_fn:
+            return self.entity_description.icon_fn(self.native_value)
+        return super().icon
 
     @property
     def native_unit_of_measurement(self) -> str | None:
-        """Return the currency unit."""
-        return self.kpi.get("currency", "AUD")
+        """Return the unit, which may come from the data."""
+        if self.entity_description.unit_fn:
+            return self.entity_description.unit_fn(self.station)
+        return super().native_unit_of_measurement
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return extra attributes, if the sensor has any."""
+        if self.entity_description.attributes_fn:
+            return self.entity_description.attributes_fn(self.station)
+        return None
 
 
-class LGESTotalIncomeSensor(LGESSensor):
-    """Sensor for total lifetime income."""
+class LGESSolarStringSensor(LGESEntity):
+    """Power or voltage of one solar panel string (an MPPT input on the inverter)."""
 
-    _attr_translation_key = "total_income"
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:cash-multiple"
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def __init__(self, coordinator, station_id, device_info):
+    def __init__(
+        self,
+        coordinator: LGESDataUpdateCoordinator,
+        station_id: str,
+        device_info: DeviceInfo,
+        number: int,
+        measure: str,
+    ) -> None:
+        """Initialize the sensor."""
         super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_total_income"
+        self._number = number
+        self._measure = measure
+        self._attr_unique_id = f"{station_id}_pv{number}_{measure}"
+        self._attr_name = f"Solar String {number} {measure.capitalize()}"
+        if measure == "power":
+            self._attr_device_class = SensorDeviceClass.POWER
+            self._attr_native_unit_of_measurement = UnitOfPower.WATT
+            self._attr_icon = "mdi:solar-panel"
+        else:
+            self._attr_device_class = SensorDeviceClass.VOLTAGE
+            self._attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
 
     @property
     def native_value(self) -> float | None:
-        """Return total income."""
-        value = self.kpi.get("total_income")
-        if value is not None:
-            return float(value)
-        return None
-
-    @property
-    def native_unit_of_measurement(self) -> str | None:
-        """Return the currency unit."""
-        return self.kpi.get("currency", "AUD")
+        """Return this string's latest reading."""
+        strings = self.station.get("inverter", {}).get("strings", {})
+        return strings.get(self._number, {}).get(self._measure)
 
 
-class LGESStatusSensor(LGESSensor):
-    """Sensor for system status."""
-
-    _attr_translation_key = "status"
-    _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = ["online", "offline", "error", "waiting", "unknown"]
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_status"
-
-    @property
-    def native_value(self) -> str:
-        """Return the status."""
-        status = self.info.get("status")
-        if status is None:
-            return "unknown"
-        
-        status_map = {
-            -1: "error",
-            0: "offline",
-            1: "online",
-            2: "waiting",
-        }
-        return status_map.get(status, "unknown")
-
-    @property
-    def icon(self) -> str:
-        """Return icon based on status."""
-        status = self.info.get("status")
-        if status == 1:
-            return "mdi:check-circle"
-        if status == 0:
-            return "mdi:power-off"
-        if status == -1:
-            return "mdi:alert-circle"
-        return "mdi:help-circle"
-
-
-class LGESSolarCapacitySensor(LGESSensor):
-    """Sensor for solar panel capacity."""
-
-    _attr_translation_key = "solar_capacity"
-    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
-    _attr_device_class = SensorDeviceClass.POWER
-    _attr_icon = "mdi:solar-panel-large"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_solar_capacity"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return solar capacity."""
-        value = self.info.get("capacity")
-        if value is not None:
-            return float(value)
-        return None
-
-
-class LGESLastUpdateSensor(LGESSensor):
-    """Sensor for last update time."""
-
-    _attr_translation_key = "last_update"
-    _attr_device_class = SensorDeviceClass.TIMESTAMP
-    _attr_icon = "mdi:clock-outline"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_last_update"
-
-    @property
-    def native_value(self) -> datetime | None:
-        """Return the last update time."""
-        from datetime import timezone, timedelta
-        
-        local_date = self.info.get("local_date")
-        if local_date:
-            try:
-                # Parse format: "2025-12-09 17:46:59"
-                dt = datetime.strptime(local_date, "%Y-%m-%d %H:%M:%S")
-                
-                # Get timezone offset from API (time_span is negative, e.g., -10 for GMT+10)
-                time_span = self.info.get("time_span", 0)
-                # Convert to positive offset (API returns -10 for UTC+10)
-                offset_hours = -time_span if time_span else 0
-                tz = timezone(timedelta(hours=offset_hours))
-                
-                return dt.replace(tzinfo=tz)
-            except (ValueError, TypeError) as err:
-                _LOGGER.warning("Could not parse date '%s': %s", local_date, err)
-        return None
-
-
-class LGESBatteryUnitSensor(LGESSensor):
-    """Sensor for individual battery unit."""
+class LGESBatteryUnitSensor(LGESEntity):
+    """Charge level of one battery unit reported by a storage inverter."""
 
     _attr_device_class = SensorDeviceClass.BATTERY
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def __init__(self, coordinator, station_id, device_info, battery_index: int, battery_sn: str):
+    def __init__(
+        self,
+        coordinator: LGESDataUpdateCoordinator,
+        station_id: str,
+        device_info: DeviceInfo,
+        index: int,
+        battery: dict[str, Any],
+    ) -> None:
+        """Initialize the sensor."""
         super().__init__(coordinator, station_id, device_info)
-        self._battery_index = battery_index
-        self._battery_sn = battery_sn
-        self._attr_unique_id = f"{station_id}_battery_{battery_index}"
-        self._attr_name = f"Battery {battery_index + 1} ({battery_sn[-8:]})"
+        self._index = index
+        self._attr_unique_id = f"{station_id}_battery_{index}"
+        self._attr_name = f"Battery {index + 1} ({str(battery.get('name', ''))[-8:]})"
+
+    @property
+    def battery(self) -> dict[str, Any]:
+        """Return this battery's latest data."""
+        batteries = self.station.get("batteries", [])
+        return batteries[self._index] if self._index < len(batteries) else {}
 
     @property
     def native_value(self) -> float | None:
-        """Return the battery SOC."""
-        soc_list = self.soc_list
-        if len(soc_list) > self._battery_index:
-            power = soc_list[self._battery_index].get("power")
-            if power is not None:
-                return float(power)
-        return None
+        """Return the battery's charge level."""
+        return self.battery.get("soc")
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return additional battery attributes."""
-        soc_list = self.soc_list
-        if len(soc_list) > self._battery_index:
-            battery = soc_list[self._battery_index]
-            return {
-                "serial_number": battery.get("sn"),
-                "status": battery.get("status"),
-                "local": battery.get("local"),
-            }
-        return {}
-
-
-# All-Time Energy Sensors (from GetChartByPlant with Range=1)
-
-class LGESAllTimeGenerationSensor(LGESSensor):
-    """Sensor for all-time solar generation (from modelData.sum with Range=1)."""
-
-    _attr_translation_key = "generation_all_time"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:solar-power-variant"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_generation_all_time"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return all-time generation in kWh (all-time + today for real-time accuracy)."""
-        all_time = self.all_time_model_data.get("sum")
-        today = self.model_data.get("sum")
-        if all_time is not None:
-            total = float(all_time)
-            if today is not None:
-                total += float(today)
-            return total
-        return None
-
-
-class LGESAllTimeGridImportSensor(LGESSensor):
-    """Sensor for all-time grid import (total energy bought from grid)."""
-
-    _attr_translation_key = "grid_import_all_time"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:transmission-tower-import"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_grid_import_all_time"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return all-time grid import in kWh (all-time + today for real-time accuracy)."""
-        all_time = self.all_time_model_data.get("buy")
-        today = self.model_data.get("buy")
-        if all_time is not None:
-            total = float(all_time)
-            if today is not None:
-                total += float(today)
-            return total
-        return None
-
-
-class LGESAllTimeGridExportSensor(LGESSensor):
-    """Sensor for all-time grid export (total energy sold to grid)."""
-
-    _attr_translation_key = "grid_export_all_time"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:transmission-tower-export"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_grid_export_all_time"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return all-time grid export in kWh (all-time + today for real-time accuracy)."""
-        all_time = self.all_time_model_data.get("sell")
-        today = self.model_data.get("sell")
-        if all_time is not None:
-            total = float(all_time)
-            if today is not None:
-                total += float(today)
-            return total
-        return None
-
-
-class LGESAllTimeSelfUseSensor(LGESSensor):
-    """Sensor for all-time self-consumed solar energy."""
-
-    _attr_translation_key = "self_use_all_time"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:home-lightning-bolt"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_self_use_all_time"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return all-time self-consumed solar in kWh (all-time + today for real-time accuracy)."""
-        all_time = self.all_time_model_data.get("selfUseOfPv")
-        today = self.model_data.get("selfUseOfPv")
-        if all_time is not None:
-            total = float(all_time)
-            if today is not None:
-                total += float(today)
-            return total
-        return None
-
-
-class LGESAllTimeBatteryChargeSensor(LGESSensor):
-    """Sensor for all-time battery charge energy."""
-
-    _attr_translation_key = "battery_charge_all_time"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:battery-charging"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_battery_charge_all_time"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return all-time battery charge in kWh (all-time + today for real-time accuracy)."""
-        all_time = self.all_time_model_data.get("charge")
-        today = self.model_data.get("charge")
-        if all_time is not None:
-            total = float(all_time)
-            if today is not None:
-                total += float(today)
-            return total
-        return None
-
-
-class LGESAllTimeBatteryDischargeSensor(LGESSensor):
-    """Sensor for all-time battery discharge energy."""
-
-    _attr_translation_key = "battery_discharge_all_time"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:battery-arrow-down"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_battery_discharge_all_time"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return all-time battery discharge in kWh (all-time + today for real-time accuracy)."""
-        all_time = self.all_time_model_data.get("disCharge")
-        today = self.model_data.get("disCharge")
-        if all_time is not None:
-            total = float(all_time)
-            if today is not None:
-                total += float(today)
-            return total
-        return None
-
-
-class LGESAllTimeConsumptionSensor(LGESSensor):
-    """Sensor for all-time home consumption."""
-
-    _attr_translation_key = "consumption_all_time"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:home-lightning-bolt"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_consumption_all_time"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return all-time home consumption in kWh (all-time + today for real-time accuracy)."""
-        all_time = self.all_time_model_data.get("consumptionOfLoad")
-        today = self.model_data.get("consumptionOfLoad")
-        if all_time is not None:
-            total = float(all_time)
-            if today is not None:
-                total += float(today)
-            return total
-        return None
-
-
-# Monthly Energy Sensors (from GetChartByPlant with Range=3)
-
-class LGESMonthlyGenerationSensor(LGESSensor):
-    """Sensor for this month's solar generation."""
-
-    _attr_translation_key = "generation_this_month"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:solar-power-variant"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_generation_this_month"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return this month's generation in kWh."""
-        generation = self.monthly_model_data.get("sum")
-        if generation is not None:
-            return float(generation)
-        return None
-
-
-class LGESMonthlyGridImportSensor(LGESSensor):
-    """Sensor for this month's grid import."""
-
-    _attr_translation_key = "grid_import_this_month"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:transmission-tower-import"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_grid_import_this_month"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return this month's grid import in kWh."""
-        buy = self.monthly_model_data.get("buy")
-        if buy is not None:
-            return float(buy)
-        return None
-
-
-class LGESMonthlyGridExportSensor(LGESSensor):
-    """Sensor for this month's grid export."""
-
-    _attr_translation_key = "grid_export_this_month"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:transmission-tower-export"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_grid_export_this_month"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return this month's grid export in kWh."""
-        sell = self.monthly_model_data.get("sell")
-        if sell is not None:
-            return float(sell)
-        return None
-
-
-class LGESMonthlySelfUseSensor(LGESSensor):
-    """Sensor for this month's self-consumed solar energy."""
-
-    _attr_translation_key = "self_use_this_month"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:home-lightning-bolt"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_self_use_this_month"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return this month's self-consumed solar in kWh."""
-        self_use = self.monthly_model_data.get("selfUseOfPv")
-        if self_use is not None:
-            return float(self_use)
-        return None
-
-
-class LGESMonthlyBatteryChargeSensor(LGESSensor):
-    """Sensor for this month's battery charge energy."""
-
-    _attr_translation_key = "battery_charge_this_month"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:battery-charging"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_battery_charge_this_month"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return this month's battery charge in kWh."""
-        charge = self.monthly_model_data.get("charge")
-        if charge is not None:
-            return float(charge)
-        return None
-
-
-class LGESMonthlyBatteryDischargeSensor(LGESSensor):
-    """Sensor for this month's battery discharge energy."""
-
-    _attr_translation_key = "battery_discharge_this_month"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:battery-arrow-down"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_battery_discharge_this_month"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return this month's battery discharge in kWh."""
-        discharge = self.monthly_model_data.get("disCharge")
-        if discharge is not None:
-            return float(discharge)
-        return None
-
-
-class LGESMonthlyConsumptionSensor(LGESSensor):
-    """Sensor for this month's home consumption."""
-
-    _attr_translation_key = "consumption_this_month"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:home-lightning-bolt"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_consumption_this_month"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return this month's home consumption in kWh."""
-        consumption = self.monthly_model_data.get("consumptionOfLoad")
-        if consumption is not None:
-            return float(consumption)
-        return None
-
-
-# Yearly Energy Sensors (from GetChartByPlant with Range=4)
-
-class LGESYearlyGenerationSensor(LGESSensor):
-    """Sensor for this year's solar generation."""
-
-    _attr_translation_key = "generation_this_year"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:solar-power-variant"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_generation_this_year"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return this year's generation in kWh."""
-        generation = self.yearly_model_data.get("sum")
-        if generation is not None:
-            return float(generation)
-        return None
-
-
-class LGESYearlyGridImportSensor(LGESSensor):
-    """Sensor for this year's grid import."""
-
-    _attr_translation_key = "grid_import_this_year"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:transmission-tower-import"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_grid_import_this_year"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return this year's grid import in kWh."""
-        buy = self.yearly_model_data.get("buy")
-        if buy is not None:
-            return float(buy)
-        return None
-
-
-class LGESYearlyGridExportSensor(LGESSensor):
-    """Sensor for this year's grid export."""
-
-    _attr_translation_key = "grid_export_this_year"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:transmission-tower-export"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_grid_export_this_year"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return this year's grid export in kWh."""
-        sell = self.yearly_model_data.get("sell")
-        if sell is not None:
-            return float(sell)
-        return None
-
-
-class LGESYearlySelfUseSensor(LGESSensor):
-    """Sensor for this year's self-consumed solar energy."""
-
-    _attr_translation_key = "self_use_this_year"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:home-lightning-bolt"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_self_use_this_year"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return this year's self-consumed solar in kWh."""
-        self_use = self.yearly_model_data.get("selfUseOfPv")
-        if self_use is not None:
-            return float(self_use)
-        return None
-
-
-class LGESYearlyBatteryChargeSensor(LGESSensor):
-    """Sensor for this year's battery charge energy."""
-
-    _attr_translation_key = "battery_charge_this_year"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:battery-charging"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_battery_charge_this_year"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return this year's battery charge in kWh."""
-        charge = self.yearly_model_data.get("charge")
-        if charge is not None:
-            return float(charge)
-        return None
-
-
-class LGESYearlyBatteryDischargeSensor(LGESSensor):
-    """Sensor for this year's battery discharge energy."""
-
-    _attr_translation_key = "battery_discharge_this_year"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:battery-arrow-down"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_battery_discharge_this_year"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return this year's battery discharge in kWh."""
-        discharge = self.yearly_model_data.get("disCharge")
-        if discharge is not None:
-            return float(discharge)
-        return None
-
-
-class LGESYearlyConsumptionSensor(LGESSensor):
-    """Sensor for this year's home consumption."""
-
-    _attr_translation_key = "consumption_this_year"
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:home-lightning-bolt"
-
-    def __init__(self, coordinator, station_id, device_info):
-        super().__init__(coordinator, station_id, device_info)
-        self._attr_unique_id = f"{station_id}_consumption_this_year"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return this year's home consumption in kWh."""
-        consumption = self.yearly_model_data.get("consumptionOfLoad")
-        if consumption is not None:
-            return float(consumption)
-        return None
+        """Return the battery's identity and connection state."""
+        battery = self.battery
+        return {
+            "serial_number": battery.get("name"),
+            "status": battery.get("status"),
+            "connected": battery.get("connected"),
+        }
