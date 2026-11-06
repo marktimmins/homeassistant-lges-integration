@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
@@ -10,7 +11,7 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import LGESApiClient, LGESAuthError, LGESApiError
+from .api import LGESApiClient, LGESApiError, LGESAuthError
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -21,6 +22,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_PASSWORD): str,
     }
 )
+STEP_REAUTH_DATA_SCHEMA = vol.Schema({vol.Required(CONF_PASSWORD): str})
 
 
 class LGESConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -28,50 +30,48 @@ class LGESConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
+    _reauth_entry: config_entries.ConfigEntry | None = None
+
+    async def _check_login(
+        self, username: str, password: str
+    ) -> tuple[int, dict[str, str]]:
+        """Sign in and count the stations; return (count, errors)."""
+        client = LGESApiClient(
+            session=async_get_clientsession(self.hass),
+            username=username,
+            password=password,
+        )
+        try:
+            stations = await client.get_power_stations()
+        except LGESAuthError:
+            return 0, {"base": "invalid_auth"}
+        except LGESApiError:
+            return 0, {"base": "cannot_connect"}
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.exception("Unexpected exception")
+            return 0, {"base": "unknown"}
+        if not stations:
+            return 0, {"base": "no_stations"}
+        return len(stations), {}
+
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle the initial step."""
+        """Ask for the account login and check it works."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            try:
-                # Test authentication
-                session = async_get_clientsession(self.hass)
-                client = LGESApiClient(
-                    session=session,
-                    username=user_input[CONF_USERNAME],
-                    password=user_input[CONF_PASSWORD],
+            await self.async_set_unique_id(user_input[CONF_USERNAME].lower())
+            self._abort_if_unique_id_configured()
+
+            count, errors = await self._check_login(
+                user_input[CONF_USERNAME], user_input[CONF_PASSWORD]
+            )
+            if not errors:
+                return self.async_create_entry(
+                    title=f"LGES Monitor ({count} station{'s' if count > 1 else ''})",
+                    data=user_input,
                 )
-                
-                await client.authenticate()
-                
-                # Get stations to validate we have access
-                stations = await client.get_power_stations()
-                
-                if not stations:
-                    errors["base"] = "no_stations"
-                else:
-                    # Create unique ID based on username
-                    await self.async_set_unique_id(user_input[CONF_USERNAME].lower())
-                    self._abort_if_unique_id_configured()
-                    
-                    # Get station info for title
-                    station_count = len(stations)
-                    title = f"LGES Monitor ({station_count} station{'s' if station_count > 1 else ''})"
-                    
-                    return self.async_create_entry(
-                        title=title,
-                        data=user_input,
-                    )
-                    
-            except LGESAuthError:
-                errors["base"] = "invalid_auth"
-            except LGESApiError:
-                errors["base"] = "cannot_connect"
-            except Exception:  # pylint: disable=broad-except
-                _LOGGER.exception("Unexpected exception")
-                errors["base"] = "unknown"
 
         return self.async_show_form(
             step_id="user",
@@ -79,22 +79,37 @@ class LGESConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> FlowResult:
+        """Start here when the saved password stops working."""
+        self._reauth_entry = self.hass.config_entries.async_get_entry(
+            self.context["entry_id"]
+        )
+        return await self.async_step_reauth_confirm()
 
-class LGESOptionsFlow(config_entries.OptionsFlow):
-    """Handle options flow for LG Energy Solutions."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
-
-    async def async_step_init(
+    async def async_step_reauth_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Manage the options."""
+        """Ask for the new password and check it works."""
+        assert self._reauth_entry is not None
+        username = self._reauth_entry.data[CONF_USERNAME]
+        errors: dict[str, str] = {}
+
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            _, errors = await self._check_login(username, user_input[CONF_PASSWORD])
+            if not errors:
+                # (async_update_reload_and_abort needs HA 2024.6; we support 2024.1.)
+                self.hass.config_entries.async_update_entry(
+                    self._reauth_entry,
+                    data={**self._reauth_entry.data, CONF_PASSWORD: user_input[CONF_PASSWORD]},
+                )
+                self.hass.async_create_task(
+                    self.hass.config_entries.async_reload(self._reauth_entry.entry_id)
+                )
+                return self.async_abort(reason="reauth_successful")
 
         return self.async_show_form(
-            step_id="init",
-            data_schema=vol.Schema({}),
+            step_id="reauth_confirm",
+            data_schema=STEP_REAUTH_DATA_SCHEMA,
+            description_placeholders={"username": username},
+            errors=errors,
         )
